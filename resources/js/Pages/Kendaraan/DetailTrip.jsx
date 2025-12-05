@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, Fragment } from "react";
 import { Head, Link, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import dateFormat from "dateformat";
@@ -25,10 +25,11 @@ import {
 } from "react-icons/fa";
 import { ToastContainer, toast, Flip } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import { Dialog, Transition, Combobox, RadioGroup } from "@headlessui/react";
 
 // Tambahkan section untuk informasi BBM
 const BbmInfoSection = ({ trip, auth }) => {
-    if (!auth.user.role === "admin") return null;
+    if (auth.user.role !== "admin") return null;
 
     // Jika tidak ada data BBM, return null
     if (
@@ -60,7 +61,7 @@ const BbmInfoSection = ({ trip, auth }) => {
 
     return (
         <>
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-5 mb-6">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all hover:shadow-md">
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                     <h2 className="text-lg font-medium text-gray-900 dark:text-white flex items-center">
                         <FaGasPump className="mr-2 text-blue-500" />
@@ -72,7 +73,7 @@ const BbmInfoSection = ({ trip, auth }) => {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Jenis BBM */}
                     <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -138,18 +139,18 @@ const BbmInfoSection = ({ trip, auth }) => {
 
 const formatDateTimeForInput = (dateTimeString) => {
     if (!dateTimeString) return "";
-    
+
     try {
         // 1. Buat objek Date dari string waktu (misalnya "2025-10-06 17:00:00")
         const date = new Date(dateTimeString);
 
         // 2. Tambahkan offset 7 jam (untuk mengatasi konversi browser yang berlebihan)
         // Kita geser maju 7 jam agar browser menariknya mundur 7 jam ke waktu yang benar.
-        date.setHours(date.getHours() + 7); 
+        date.setHours(date.getHours() + 7);
 
         // 3. Konversi ke string ISO (yang akan diubah formatnya oleh browser)
         const isoString = date.toISOString();
-        
+
         // 4. Potong string ke format YYYY-MM-DDTHH:MM
         return isoString.slice(0, 16);
     } catch (e) {
@@ -161,7 +162,8 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
     const [selectedImage, setSelectedImage] = useState(null);
     const [showBbmModal, setShowBbmModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false); // Kontrol modal edit
-    const [editData, setEditData] = useState({ // Data yang diisi di form edit
+    const [editData, setEditData] = useState({
+        // Data yang diisi di form edit
         // Ambil nilai saat ini dari 'trip' sebagai nilai awal form
         penumpang: trip.penumpang || "",
         tujuan: trip.tujuan || "",
@@ -172,7 +174,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
         km_akhir: trip.km_akhir || "",
         // Asumsi Anda mengirim ID driver dan kendaraan juga
         driver_id: trip.driver?.id || "",
-        kendaraan_id: trip.kendaraan?.id || "", 
+        kendaraan_id: trip.kendaraan?.id || "",
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
@@ -182,6 +184,51 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
         total_harga: "",
         jenis_bbm: "Pertalite", // Default jenis BBM
     });
+    const [validationErrors, setValidationErrors] = useState({});
+    const [destinationQuery, setDestinationQuery] = useState("");
+    const destinationOptions = [
+        "Kantor Pusat",
+        "Gudang Utama",
+        "GI Kosambi Baru",
+        "Workshop",
+        "Pelabuhan",
+        "Bandara",
+    ];
+    const [changeLevel, setChangeLevel] = useState("Minor");
+
+    // Autosave draft ke localStorage
+    const draftKey = `trip:${trip.code_trip}:editDraft`;
+    const [autosaveTimer, setAutosaveTimer] = useState(null);
+
+    // Load draft saat buka modal edit
+    useEffect(() => {
+        if (showEditModal) {
+            try {
+                const raw = localStorage.getItem(draftKey);
+                if (raw) {
+                    const saved = JSON.parse(raw);
+                    setEditData((prev) => ({ ...prev, ...saved }));
+                }
+            } catch (e) {
+                console.error("Gagal memuat draft edit:", e);
+            }
+        }
+    }, [showEditModal]);
+
+    // Simpan draft otomatis dengan debounce
+    useEffect(() => {
+        if (!showEditModal) return;
+        if (autosaveTimer) clearTimeout(autosaveTimer);
+        const t = setTimeout(() => {
+            try {
+                localStorage.setItem(draftKey, JSON.stringify(editData));
+            } catch (e) {
+                console.error("Gagal menyimpan draft edit:", e);
+            }
+        }, 500);
+        setAutosaveTimer(t);
+        return () => clearTimeout(t);
+    }, [editData, showEditModal]);
 
     // Daftar jenis BBM
     const jenisBBMOptions = [
@@ -357,33 +404,45 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
 
         // NOTE: trips.request.edit adalah NAMA ROUTE LARAVEL yang sudah kita tentukan di backend
         router.post(
-            route("trips.request.edit", trip.code_trip), 
+            route("trips.request.edit", trip.code_trip),
             editData, // Kirim semua data yang ada di state editData
             {
                 onSuccess: () => {
                     setIsSubmitting(false);
                     setShowEditModal(false); // Tutup modal
-                    
+                    try {
+                        localStorage.removeItem(
+                            `trip:${trip.code_trip}:editDraft`
+                        );
+                    } catch {}
+
                     // Tampilkan notifikasi sukses
-                    toast.success("Permintaan perubahan berhasil diajukan! Menunggu persetujuan Admin.", {
-                        position: "top-right",
-                        autoClose: 5000,
-                        theme: "colored",
-                    });
+                    toast.success(
+                        "Permintaan perubahan berhasil diajukan! Menunggu persetujuan Admin.",
+                        {
+                            position: "top-right",
+                            autoClose: 5000,
+                            theme: "colored",
+                        }
+                    );
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
                     console.error(errors);
-                    toast.error("Gagal mengajukan perubahan. Cek kembali data Anda!", {
-                        position: "top-right",
-                        autoClose: 5000,
-                        theme: "colored",
-                    });
+                    setValidationErrors(errors || {});
+                    toast.error(
+                        "Gagal mengajukan perubahan. Cek kembali data Anda!",
+                        {
+                            position: "top-right",
+                            autoClose: 5000,
+                            theme: "colored",
+                        }
+                    );
                 },
             }
         );
     };
-// << Selesai: Fungsi untuk memproses pengajuan edit trip
+    // << Selesai: Fungsi untuk memproses pengajuan edit trip
 
     // Modifikasi fungsi renderPhotoSection untuk menambahkan tombol download
     const renderPhotoSection = (photos, title) => {
@@ -403,20 +462,26 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
         if (!photoArray || photoArray.length === 0) return null;
 
         return (
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-6 mb-6 transition-all hover:shadow-md">
-                <h2 className="text-lg font-medium mb-4 md:mb-6 text-gray-900 dark:text-white flex items-center">
-                    <FaCamera className="mr-2 text-blue-500" /> {title}
-                </h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all hover:shadow-md">
+                <div className="flex items-center justify-between mb-4 md:mb-6">
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                        <FaCamera className="mr-2 text-blue-500" /> {title}
+                    </h2>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                        Klik foto untuk melihat
+                    </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {photoArray.map((photo, index) => (
                         <div
                             key={`${title}-${index}`}
-                            className="relative aspect-square rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
+                            className="group relative aspect-square rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all duration-300"
                         >
                             <img
+                                loading="lazy"
                                 src={`/storage/${photo}`}
                                 alt={`Foto ${title} ${index + 1}`}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                 onError={(e) => {
                                     console.error(
                                         `Error loading image: ${photo}`
@@ -425,12 +490,12 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                         "/path/to/fallback-image.jpg";
                                 }}
                             />
-                            <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-60 p-2 flex justify-between items-center">
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-black/0 p-2 flex justify-between items-center">
                                 <button
                                     onClick={() =>
                                         setSelectedImage(`/storage/${photo}`)
                                     }
-                                    className="text-white text-xs flex items-center hover:text-blue-300 transition-colors"
+                                    className="text-white text-xs flex items-center hover:text-blue-300 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded"
                                     aria-label={`Lihat foto ${title} ${
                                         index + 1
                                     }`}
@@ -446,7 +511,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             }.jpg`
                                         )
                                     }
-                                    className="text-white text-xs flex items-center hover:text-green-300 transition-colors"
+                                    className="text-white text-xs flex items-center hover:text-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 rounded"
                                     aria-label={`Unduh foto ${title} ${
                                         index + 1
                                     }`}
@@ -492,7 +557,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                     theme={isDarkMode ? "dark" : "light"}
                     transition={Flip}
                 />
-                <div className="p-0 md:px-0">
+                <div className="px-4 md:px-0">
                     {/* Header dengan tombol kembali */}
                     <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
                         <div className="flex flex-col md:flex-row md:items-center gap-2 mb-4 md:mb-0">
@@ -526,31 +591,33 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                         </div>
 
                         {/* Tampilkan tombol edit jika user adalah Admin ATAU user yang membuat trip */}
-                            <div className="flex items-center space-x-3">
-                                {/* >> Tombol Edit Trip (BARU) */}
+                        <div className="flex items-center space-x-3">
+                            {/* >> Tombol Edit Trip (BARU) */}
+                            <button
+                                className="text-sm font-medium text-blue-700 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 px-4 py-2 rounded-md transition duration-300 shadow-sm flex items-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                onClick={() => setShowEditModal(true)}
+                                aria-label="Edit Trip"
+                            >
+                                <FaSave className="mr-2" /> Edit Trip
+                            </button>
+
+                            {/* Tombol Tambah BBM (Hanya untuk Admin) */}
+                            {auth.user.role === "admin" && (
                                 <button
-                                    className="text-sm font-medium text-blue-700 dark:text-blue-200 bg-blue-100 dark:bg-blue-900/50 hover:bg-blue-200 dark:hover:bg-blue-900 px-4 py-2 rounded-md transition duration-300 shadow-sm flex items-center"
-                                    onClick={() => setShowEditModal(true)} // Membuka modal edit
+                                    className="text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 px-4 py-2 rounded-md transition duration-300 shadow-sm flex items-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    onClick={() => setShowBbmModal(true)}
+                                    aria-label="Tambah data BBM"
                                 >
-                                    <FaSave className="mr-2" /> Edit Trip
+                                    <FaGasPump className="mr-2" /> Tambah BBM
                                 </button>
-                                
-                                {/* Tombol Tambah BBM (Hanya untuk Admin) */}
-                                {auth.user.role === "admin" && (
-                                    <button
-                                        className="text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 px-4 py-2 rounded-md transition duration-300 shadow-sm flex items-center"
-                                        onClick={() => setShowBbmModal(true)}
-                                    >
-                                        <FaGasPump className="mr-2" /> Tambah BBM
-                                    </button>
-                                )}
-                            </div>                       
+                            )}
+                        </div>
                     </div>
 
                     {/* Informasi Trip */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         {/* Informasi Kendaraan dan Driver */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-6 transition-all hover:shadow-md">
+                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all hover:shadow-md">
                             <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-white flex items-center">
                                 <FaCar className="mr-2 text-blue-500" />{" "}
                                 Informasi Kendaraan & Driver
@@ -601,7 +668,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                         </div>
 
                         {/* Informasi Perjalanan */}
-                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-6 transition-all hover:shadow-md">
+                        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 transition-all hover:shadow-md">
                             <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-white flex items-center">
                                 <FaMapMarkerAlt className="mr-2 text-blue-500" />{" "}
                                 Informasi Perjalanan
@@ -648,70 +715,61 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                     </div>
 
                     {/* Informasi Kilometer */}
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-6 mb-6 transition-all hover:shadow-md">
+                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6 transition-all hover:shadow-md">
                         <h2 className="text-lg font-medium mb-4 text-gray-900 dark:text-white flex items-center">
                             <FaTachometerAlt className="mr-2 text-blue-500" />
                             Informasi Kilometer
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 flex flex-col transition-all">
-                                <div className="flex items-center mb-2">
-                                    <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mr-3">
-                                        <FaTachometerAlt className="text-blue-500" />
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
                                         Kilometer Awal
                                     </p>
+                                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        {String(trip.km_awal).replace(
+                                            /\B(?=(\d{3})+(?!\d))/g,
+                                            "."
+                                        )}
+                                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+                                            km
+                                        </span>
+                                    </p>
                                 </div>
-                                <p className="text-xl font-semibold text-gray-900 dark:text-white ml-11">
-                                    {String(trip.km_awal).replace(
-                                        /\B(?=(\d{3})+(?!\d))/g,
-                                        "."
-                                    )}
-                                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                                        km
-                                    </span>
-                                </p>
                             </div>
 
-                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 flex flex-col transition-all">
-                                <div className="flex items-center mb-2">
-                                    <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mr-3">
-                                        <FaTachometerAlt className="text-green-500" />
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
                                         Kilometer Akhir
                                     </p>
-                                </div>
-                                <p className="text-xl font-semibold text-gray-900 dark:text-white ml-11">
-                                    {String(trip.km_akhir).replace(
-                                        /\B(?=(\d{3})+(?!\d))/g,
-                                        "."
-                                    )}
-                                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                                        km
-                                    </span>
-                                </p>
-                            </div>
-
-                            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 flex flex-col transition-all">
-                                <div className="flex items-center mb-2">
-                                    <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mr-3">
-                                        <FaMapMarkerAlt className="text-red-500" />
-                                    </div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                                        Jarak Tempuh
+                                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        {String(trip.km_akhir).replace(
+                                            /\B(?=(\d{3})+(?!\d))/g,
+                                            "."
+                                        )}
+                                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+                                            km
+                                        </span>
                                     </p>
                                 </div>
-                                <p className="text-xl font-semibold text-gray-900 dark:text-white ml-11">
-                                    {String(trip.jarak).replace(
-                                        /\B(?=(\d{3})+(?!\d))/g,
-                                        "."
-                                    )}
-                                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
-                                        km
-                                    </span>
-                                </p>
+                            </div>
+
+                            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        Jarak Tempuh
+                                    </p>
+                                    <p className="text-lg font-semibold text-gray-900 dark:text-white">
+                                        {String(trip.jarak).replace(
+                                            /\B(?=(\d{3})+(?!\d))/g,
+                                            "."
+                                        )}
+                                        <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+                                            km
+                                        </span>
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -735,6 +793,9 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                         <div
                             className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 p-4"
                             onClick={() => setSelectedImage(null)}
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Lihat foto"
                         >
                             <div className="relative max-w-4xl w-full">
                                 <div className="absolute top-4 right-4 flex space-x-2">
@@ -1003,7 +1064,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
 
                     {/* Modal EDIT TRIP di samping kanan (BARU) */}
                     <div
-                        className={`fixed top-0 right-0 h-full w-full md:w-96 bg-white dark:bg-gray-800 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
+                        className={`fixed top-0 right-0 h-full w-full md:w-1/3 bg-white dark:bg-gray-800 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
                             showEditModal ? "translate-x-0" : "translate-x-full"
                         } overflow-y-auto`}
                     >
@@ -1021,71 +1082,144 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                 </button>
                             </div>
 
-                            <form onSubmit={handleEditSubmit} className="space-y-4">
-                                
+                            <form
+                                onSubmit={handleEditSubmit}
+                                className="space-y-4"
+                            >
                                 {/* ------------------------- INFORMASI KENDARAAN & DRIVER ------------------------- */}
                                 <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                                    <h3 className="font-semibold text-sm text-blue-800 dark:text-blue-300 mb-2">Kendaraan & Driver</h3>
-                                    
-                                    {/* Input Dropdown Kendaraan */}
+                                    <h3 className="font-semibold text-sm text-blue-800 dark:text-blue-300 mb-2">
+                                        Kendaraan & Driver
+                                    </h3>
+
+                                    {/* Input Kendaraan Combobox */}
                                     <div className="mb-3">
                                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                             Kendaraan
                                         </label>
-                                        <select
-                                            name="kendaraan_id"
-                                            value={editData.kendaraan_id}
-                                            onChange={(e) => setEditData({...editData, kendaraan_id: e.target.value})}
-                                            className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
-                                            required
+                                        <Combobox
+                                            value={
+                                                allVehicles.find(
+                                                    (k) =>
+                                                        String(k.id) ===
+                                                        String(
+                                                            editData.kendaraan_id
+                                                        )
+                                                ) || null
+                                            }
+                                            onChange={(k) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    kendaraan_id: k.id,
+                                                })
+                                            }
+                                            aria-label="Pilih kendaraan"
                                         >
-                                            <option value="">Pilih Kendaraan</option>
-                                            {/* Opsi Kendaraan Saat Ini (Jika belum Selesai) */}
-                                            {trip.kendaraan && (
-                                                <option value={trip.kendaraan.id}>
-                                                    {trip.kendaraan.plat_kendaraan} - {trip.kendaraan.merek} (Saat Ini)
-                                                </option>
-                                            )}
-                                            
-                                            {/* Opsi Kendaraan Tersedia Lainnya */}
-                                            {allVehicles.map((vehicle) => (
-                                                // Hanya tampilkan jika bukan kendaraan yang sedang dipakai
-                                                <option key={vehicle.id} value={vehicle.id}>
-                                                    {vehicle.plat_kendaraan} - {vehicle.merek}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            <div className="relative">
+                                                <Combobox.Input
+                                                    className="block w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"
+                                                    placeholder="Cari atau pilih kendaraan"
+                                                    displayValue={(k) =>
+                                                        k
+                                                            ? `${k.plat_kendaraan} - ${k.merek}`
+                                                            : ""
+                                                    }
+                                                />
+                                                <Transition
+                                                    as={Fragment}
+                                                    leave="transition ease-in duration-100"
+                                                    leaveFrom="opacity-100"
+                                                    leaveTo="opacity-0"
+                                                >
+                                                    <Combobox.Options className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                        {allVehicles.map(
+                                                            (k) => (
+                                                                <Combobox.Option
+                                                                    key={k.id}
+                                                                    value={k}
+                                                                    className={({
+                                                                        active,
+                                                                    }) =>
+                                                                        `${
+                                                                            active
+                                                                                ? "bg-blue-50 dark:bg-blue-900/30"
+                                                                                : ""
+                                                                        } cursor-pointer select-none relative py-2 pl-3 pr-9 text-gray-800 dark:text-gray-200`
+                                                                    }
+                                                                >
+                                                                    {`${k.plat_kendaraan} - ${k.merek}`}
+                                                                </Combobox.Option>
+                                                            )
+                                                        )}
+                                                    </Combobox.Options>
+                                                </Transition>
+                                            </div>
+                                        </Combobox>
                                     </div>
 
-                                    {/* Input Dropdown Driver */}
+                                    {/* Input Driver Combobox */}
                                     <div className="mb-3">
                                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
                                             Driver
                                         </label>
-                                        <select
-                                            name="driver_id"
-                                            value={editData.driver_id}
-                                            onChange={(e) => setEditData({...editData, driver_id: e.target.value})}
-                                            className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
-                                            required
+                                        <Combobox
+                                            value={
+                                                allDrivers.find(
+                                                    (d) =>
+                                                        String(d.id) ===
+                                                        String(
+                                                            editData.driver_id
+                                                        )
+                                                ) || null
+                                            }
+                                            onChange={(d) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    driver_id: d.id,
+                                                })
+                                            }
+                                            aria-label="Pilih driver"
                                         >
-                                            <option value="">Pilih Driver</option>
-                                            {/* Opsi Driver Saat Ini */}
-                                            {trip.driver && (
-                                                <option value={trip.driver.id}>
-                                                    {trip.driver.name} (Saat Ini)
-                                                </option>
-                                            )}
-                                            
-                                            {/* Opsi Driver Tersedia Lainnya */}
-                                            {allDrivers.map((driver) => (
-                                                <option key={driver.id} value={driver.id}>
-                                                    {driver.name} - {driver.phone_number}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            <div className="relative">
+                                                <Combobox.Input
+                                                    className="block w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"
+                                                    placeholder="Cari atau pilih driver"
+                                                    displayValue={(d) =>
+                                                        d
+                                                            ? `${d.name} - ${d.phone_number}`
+                                                            : ""
+                                                    }
+                                                />
+                                                <Transition
+                                                    as={Fragment}
+                                                    leave="transition ease-in duration-100"
+                                                    leaveFrom="opacity-100"
+                                                    leaveTo="opacity-0"
+                                                >
+                                                    <Combobox.Options className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                        {allDrivers.map((d) => (
+                                                            <Combobox.Option
+                                                                key={d.id}
+                                                                value={d}
+                                                                className={({
+                                                                    active,
+                                                                }) =>
+                                                                    `${
+                                                                        active
+                                                                            ? "bg-blue-50 dark:bg-blue-900/30"
+                                                                            : ""
+                                                                    } cursor-pointer select-none relative py-2 pl-3 pr-9 text-gray-800 dark:text-gray-200`
+                                                                }
+                                                            >
+                                                                {`${d.name} - ${d.phone_number}`}
+                                                            </Combobox.Option>
+                                                        ))}
+                                                    </Combobox.Options>
+                                                </Transition>
+                                            </div>
+                                        </Combobox>
                                     </div>
-                                        
+
                                     {/* Input Penumpang */}
                                     <div>
                                         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -1095,64 +1229,149 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             type="text"
                                             name="penumpang"
                                             value={editData.penumpang}
-                                            onChange={(e) => setEditData({...editData, penumpang: e.target.value})}
+                                            onChange={(e) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    penumpang: e.target.value,
+                                                })
+                                            }
                                             className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
                                         />
                                     </div>
                                 </div>
 
-
                                 {/* ------------------------- INFORMASI PERJALANAN ------------------------- */}
                                 <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                                    <h3 className="font-semibold text-sm text-green-800 dark:text-green-300 mb-2">Informasi Perjalanan</h3>
+                                    <h3 className="font-semibold text-sm text-green-800 dark:text-green-300 mb-2">
+                                        Informasi Perjalanan
+                                    </h3>
 
-                                    {/* Input Tujuan */}
+                                    {/* Input Tujuan Combobox */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Tujuan</label>
-                                        <input
-                                            type="text"
-                                            name="tujuan"
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Tujuan
+                                        </label>
+                                        <Combobox
                                             value={editData.tujuan}
-                                            onChange={(e) => setEditData({...editData, tujuan: e.target.value})}
-                                            className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
-                                            required
-                                        />
+                                            onChange={(val) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    tujuan: val,
+                                                })
+                                            }
+                                            aria-label="Pilih atau tulis tujuan"
+                                        >
+                                            <div className="relative">
+                                                <Combobox.Input
+                                                    className="block w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"
+                                                    onChange={(e) =>
+                                                        setDestinationQuery(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    displayValue={(v) =>
+                                                        v || ""
+                                                    }
+                                                    placeholder="Contoh: GI Kosambi Baru"
+                                                />
+                                                <Transition
+                                                    as={Fragment}
+                                                    leave="transition ease-in duration-100"
+                                                    leaveFrom="opacity-100"
+                                                    leaveTo="opacity-0"
+                                                >
+                                                    <Combobox.Options className="absolute z-20 mt-1 max-h-56 w-full overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                        {(destinationQuery ===
+                                                        ""
+                                                            ? destinationOptions
+                                                            : destinationOptions.filter(
+                                                                  (o) =>
+                                                                      o
+                                                                          .toLowerCase()
+                                                                          .includes(
+                                                                              destinationQuery.toLowerCase()
+                                                                          )
+                                                              )
+                                                        ).map((opt) => (
+                                                            <Combobox.Option
+                                                                key={opt}
+                                                                value={opt}
+                                                                className={({
+                                                                    active,
+                                                                }) =>
+                                                                    `${
+                                                                        active
+                                                                            ? "bg-blue-50 dark:bg-blue-900/30"
+                                                                            : ""
+                                                                    } cursor-pointer select-none relative py-2 pl-3 pr-9 text-gray-800 dark:text-gray-200`
+                                                                }
+                                                            >
+                                                                {opt}
+                                                            </Combobox.Option>
+                                                        ))}
+                                                    </Combobox.Options>
+                                                </Transition>
+                                            </div>
+                                        </Combobox>
                                     </div>
-                                    
+
                                     {/* Input Catatan */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Catatan</label>
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Catatan
+                                        </label>
                                         <textarea
                                             name="catatan"
                                             value={editData.catatan}
-                                            onChange={(e) => setEditData({...editData, catatan: e.target.value})}
+                                            onChange={(e) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    catatan: e.target.value,
+                                                })
+                                            }
                                             rows="3"
-                                            className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
+                                            className="block w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
                                         ></textarea>
                                     </div>
-                                    
+
                                     {/* Input Waktu Keberangkatan (Perlu Tipe datetime-local) */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Waktu Keberangkatan</label>
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Waktu Keberangkatan
+                                        </label>
                                         <input
                                             type="datetime-local"
                                             name="waktu_keberangkatan"
                                             // Format ISO untuk input datetime-local agar nilai trip awal terisi dengan benar
                                             value={editData.waktu_keberangkatan}
-                                            onChange={(e) => setEditData({...editData, waktu_keberangkatan: e.target.value})}
+                                            onChange={(e) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    waktu_keberangkatan:
+                                                        e.target.value,
+                                                })
+                                            }
                                             className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
                                             required
                                         />
                                     </div>
                                     {/* Input Waktu Kembali (BARU) */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Waktu Kembali</label>
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Waktu Kembali
+                                        </label>
                                         <input
                                             type="datetime-local"
                                             name="waktu_kembali"
                                             // Format ISO untuk input datetime-local agar nilai trip awal terisi dengan benar
                                             value={editData.waktu_kembali}
-                                            onChange={(e) => setEditData({...editData, waktu_kembali: e.target.value})}
+                                            onChange={(e) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    waktu_kembali:
+                                                        e.target.value,
+                                                })
+                                            }
                                             className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
                                         />
                                     </div>
@@ -1161,17 +1380,25 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                 {/* ------------------------- INFORMASI KILOMETER ------------------------- */}
                                 <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                                     <h3 className="font-semibold text-sm text-red-800 dark:text-red-300 mb-2 flex items-center">
-                                        <FaInfo className="mr-1.5" /> Kilometer (Butuh Persetujuan Admin)
+                                        <FaInfo className="mr-1.5" /> Kilometer
+                                        (Butuh Persetujuan Admin)
                                     </h3>
-                                    
+
                                     {/* Input KM Awal */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Kilometer Awal</label>
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Kilometer Awal
+                                        </label>
                                         <input
                                             type="number"
                                             name="km_awal"
                                             value={editData.km_awal}
-                                            onChange={(e) => setEditData({...editData, km_awal: e.target.value})}
+                                            onChange={(e) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    km_awal: e.target.value,
+                                                })
+                                            }
                                             className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
                                             required
                                             min={0}
@@ -1180,19 +1407,25 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
 
                                     {/* Input KM Akhir */}
                                     <div>
-                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 mt-2">Kilometer Akhir</label>
+                                        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 mt-2">
+                                            Kilometer Akhir
+                                        </label>
                                         <input
                                             type="number"
                                             name="km_akhir"
                                             value={editData.km_akhir}
-                                            onChange={(e) => setEditData({...editData, km_akhir: e.target.value})}
+                                            onChange={(e) =>
+                                                setEditData({
+                                                    ...editData,
+                                                    km_akhir: e.target.value,
+                                                })
+                                            }
                                             className="block w-full py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-sm"
                                             required
                                             min={editData.km_awal || 0}
                                         />
                                     </div>
                                 </div>
-
 
                                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                                     <button
@@ -1203,12 +1436,16 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                         {isSubmitting ? (
                                             <>
                                                 <FaSpinner className="animate-spin mr-2 h-4 w-4" />
-                                                <span>Mengirim Permintaan...</span>
+                                                <span>
+                                                    Mengirim Permintaan...
+                                                </span>
                                             </>
                                         ) : (
                                             <>
                                                 <FaSave className="mr-2 h-4 w-4" />
-                                                <span>Ajukan Perubahan Trip</span>
+                                                <span>
+                                                    Ajukan Perubahan Trip
+                                                </span>
                                             </>
                                         )}
                                     </button>
@@ -1231,7 +1468,6 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                         ></div>
                     )}
                 </div>
-                
             </DashboardLayout>
         </>
     );

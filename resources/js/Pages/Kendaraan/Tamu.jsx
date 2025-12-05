@@ -28,7 +28,7 @@ import {
 } from "react-icons/fa";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Menu, Transition, RadioGroup } from "@headlessui/react";
+import { Menu, Transition, RadioGroup, Listbox } from "@headlessui/react";
 import { Fragment } from "react";
 import * as XLSX from "xlsx";
 import "react-datepicker/dist/react-datepicker.css";
@@ -68,6 +68,8 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
     const [closeKendaraan, setCloseKendaraan] = useState(false);
     const fileInputRefClose = useRef(null);
     const [isClosingTamu, setIsClosingTamu] = useState(false);
+    const [startDate, setStartDate] = useState("");
+    const [endDate, setEndDate] = useState("");
 
     const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
@@ -79,10 +81,26 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                       return false;
                   }
               }
-              // Filter by search term on plat_kendaraan
-              return tamu?.plat_kendaraan
+              const matchesText = tamu?.plat_kendaraan
                   ?.toLowerCase()
                   ?.includes(searchTerm.toLowerCase());
+
+              if (!startDate && !endDate) return matchesText;
+
+              const arr = tamu?.waktu_kedatangan
+                  ? new Date(tamu.waktu_kedatangan)
+                  : null;
+              if (!arr) return false;
+
+              const startBound = startDate
+                  ? new Date(`${startDate}T00:00:00`)
+                  : null;
+              const endBound = endDate ? new Date(`${endDate}T23:59:59`) : null;
+
+              if (startBound && arr < startBound) return false;
+              if (endBound && arr > endBound) return false;
+
+              return matchesText;
           })
         : [];
 
@@ -829,8 +847,8 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
 
                 <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-lg overflow-hidden">
                     <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-                        <div className="flex flex-col sm:flex-row gap-4">
-                            <div className="max-w-full sm:w-1/4">
+                        <div className="relative grid grid-cols-1 sm:grid-cols-4 gap-6 items-center">
+                            <div className="max-w-full sm:w-full sm:col-span-1">
                                 <div className="relative">
                                     <input
                                         type="text"
@@ -844,7 +862,87 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                     <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
                                 </div>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-3 sm:ml-auto">
+                            <div className="flex items-center gap-2 sm:col-span-1">
+                                <div className="relative w-full">
+                                    <input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => {
+                                            setStartDate(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                                        aria-label="Tanggal mulai kedatangan"
+                                    />
+                                    <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                </div>
+                                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                                    –
+                                </span>
+                                <div className="relative w-full">
+                                    <input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => {
+                                            setEndDate(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                                        aria-label="Tanggal akhir kedatangan"
+                                    />
+                                    <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                </div>
+                            </div>
+                            <div className="flex items-center sm:col-span-1 justify-center bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 shadow-sm">
+                                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+                                    Tampilkan
+                                </span>
+                                <div className="ml-3 relative">
+                                    <Listbox
+                                        value={itemsPerPage}
+                                        onChange={(val) =>
+                                            handleItemsPerPageChange(val)
+                                        }
+                                        aria-label="Tampilkan per halaman"
+                                    >
+                                        <div className="relative">
+                                            <Listbox.Button className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium px-3 py-1.5 border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                {itemsPerPage} baris/halaman
+                                            </Listbox.Button>
+                                            <Transition
+                                                as={Fragment}
+                                                enter="transition ease-out duration-100"
+                                                enterFrom="opacity-0 scale-95"
+                                                enterTo="opacity-100 scale-100"
+                                                leave="transition ease-in duration-100"
+                                                leaveFrom="opacity-100"
+                                                leaveTo="opacity-0"
+                                            >
+                                                <Listbox.Options className="absolute top-full left-0 z-[9999] mt-1 w-44 overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
+                                                    {[8, 16].map((opt) => (
+                                                        <Listbox.Option
+                                                            key={opt}
+                                                            value={opt}
+                                                            className={({
+                                                                active,
+                                                            }) =>
+                                                                `${
+                                                                    active
+                                                                        ? "bg-blue-50 dark:bg-blue-900/30"
+                                                                        : ""
+                                                                } cursor-pointer select-none relative py-2 pl-3 pr-3 text-gray-800 dark:text-gray-200`
+                                                            }
+                                                        >
+                                                            {opt} baris
+                                                        </Listbox.Option>
+                                                    ))}
+                                                </Listbox.Options>
+                                            </Transition>
+                                        </div>
+                                    </Listbox>
+                                </div>
+                            </div>
+                            <div className="flex flex-col sm:flex-row gap-2 sm:col-span-1 sm:justify-center">
                                 {/* Button Tambah Data */}
                                 <button
                                     onClick={() => setShowPopup(true)}
@@ -1066,7 +1164,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                         )}
 
                         {/* Pagination baru yang lebih modern */}
-                        <div className="flex flex-col sm:flex-row justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1f2937] sticky bottom-0 left-0 right-0 shadow-md">
+                        <div className="flex flex-col sm:flex-row justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1f2937] sticky bottom-0 left-0 right-0 shadow-md overflow-visible">
                             {/* Info showing entries - Responsive text size */}
                             <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-center sm:text-left mb-4 sm:mb-0">
                                 Showing{" "}
@@ -1085,33 +1183,6 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                             </div>
 
                             {/* Items per page selector - Centered on desktop */}
-                            <div className="flex items-center sm:absolute sm:left-1/2 sm:transform sm:-translate-x-1/2 bg-white dark:bg-gray-800 rounded-lg dark:border-gray-700 px-3 py-2">
-                                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                                    Tampilkan
-                                </span>
-                                <select
-                                    value={itemsPerPage}
-                                    onChange={(e) =>
-                                        handleItemsPerPageChange(
-                                            Number(e.target.value)
-                                        )
-                                    }
-                                    className="ml-3 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium px-3 py-1.5 border-0 focus:ring-2 focus:ring-blue-500 transition-all duration-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
-                                >
-                                    <option value={8} className="py-4">
-                                        8 baris
-                                    </option>
-                                    <option value={16} className="py-4">
-                                        16 baris
-                                    </option>
-                                    <option
-                                        value={tamus.length}
-                                        className="py-4"
-                                    >
-                                        Semua baris
-                                    </option>
-                                </select>
-                            </div>
 
                             <div className="flex items-center space-x-4">
                                 {/* Previous Button - Responsive sizing */}

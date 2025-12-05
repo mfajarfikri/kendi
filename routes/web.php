@@ -51,9 +51,11 @@ Route::middleware(['auth', 'role:admin,user'])->group(function () {
 
     Route::get('/trip', [TripController::class, 'index'])->name('trips.index');
     Route::post('/trips', [TripController::class, 'create'])->name('trips.create');
+    Route::get('/trips/add', [TripController::class, 'add'])->name('trips.add');
     Route::post('/trips/store', [TripController::class, 'store'])->name('trips.store');
     Route::get('/trips/{code_trip}', [TripController::class, 'show'])->name('trips.show');
     Route::get('/trips/{code_trip}/edit', [TripController::class, 'edit'])->name('trips.edit');
+    Route::get('/trips/{code_trip}/close', [TripController::class, 'closeForm'])->name('trips.close.form');
 
     Route::get('/tamu', [TamuController::class, 'index'])->name('tamu.index');
     Route::post('/tamu', [TamuController::class, 'store'])->name('tamu.store');

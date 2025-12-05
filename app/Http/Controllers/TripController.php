@@ -22,10 +22,34 @@ class TripController extends Controller
      */
     public function index()
     {
+        $userLokasi = optional(Auth::user())->lokasi;
+        $tripsQuery = Trip::with(['kendaraan', 'driver', 'createdBy'])->latest();
+        if (!empty($userLokasi)) {
+            $tripsQuery->where('lokasi', $userLokasi);
+        }
         return Inertia::render('Kendaraan/Trip', [
-            'trips' => Trip::with(['kendaraan', 'driver', 'createdBy'])->latest()->get(),
+            'trips' => $tripsQuery->get(),
             'kendaraans' => Kendaraan::all(),
-            'drivers' => Driver::all()
+            'drivers' => Driver::all(),
+            'appliedLocation' => $userLokasi ?? ''
+        ]);
+    }
+
+    public function add()
+    {
+        return Inertia::render('Kendaraan/TripAdd', [
+            'kendaraans' => Kendaraan::all(),
+            'drivers' => Driver::all(),
+        ]);
+    }
+
+    public function closeForm($code_trip)
+    {
+        $trip = Trip::where('code_trip', $code_trip)
+                    ->with(['kendaraan', 'driver'])
+                    ->firstOrFail();
+        return Inertia::render('Kendaraan/TripClose', [
+            'trip' => $trip,
         ]);
     }
 
@@ -34,7 +58,9 @@ class TripController extends Controller
      */
     public function create(Request $request)
     {
-        $kendaraan = Kendaraan::find($request->kendaraan_id);
+        $request->merge([
+            'lokasi' => $request->input('lokasi', optional(Auth::user())->lokasi ?? 'Tidak Diketahui'),
+        ]);
         // Validate the request
         $validator = Validator::make($request->all(), [
             'code_trip' => 'required|unique:trips,code_trip',
@@ -47,13 +73,23 @@ class TripController extends Controller
             'penumpang' => 'nullable|string',
             'foto_berangkat' => 'required|array',
             'foto_berangkat.*' => 'required|image|max:5120', // 5MB max per image
-            'lokasi' => 'required|string',
+            'lokasi' => 'nullable|string',
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'type' => 'error',
                 'message' => 'Gagal menambahkan trip: ' . $validator->errors()->first()
+            ], 422);
+        }
+
+        $kendaraan = Kendaraan::find($request->kendaraan_id);
+        $driver = Driver::find($request->driver_id);
+
+        if (!$kendaraan || !$driver) {
+            return response()->json([
+                'type' => 'error',
+                'message' => 'Kendaraan atau driver tidak ditemukan'
             ], 422);
         }
 
@@ -182,7 +218,7 @@ class TripController extends Controller
     // 3. Simpan sebagai Permintaan Edit
     TripEditRequest::create([
         'trip_id' => $trip->id,
-        'requested_by_user_id' => auth()->id(),
+        'requested_by_user_id' => Auth::id(),
         'old_data' => json_encode($oldData),
         'new_data' => json_encode($validated), // Hanya simpan data yang sudah divalidasi
         'status' => 'pending',
@@ -201,7 +237,7 @@ class TripController extends Controller
         }
         
         // Pastikan user yang login adalah Admin (Anda mungkin punya middleware admin)
-        if (auth()->user()->role !== 'admin') {
+        if (Auth::user()->role !== 'admin') {
             abort(403, 'Akses ditolak.');
         }
 
@@ -231,7 +267,7 @@ class TripController extends Controller
         // 5. Update Status Permintaan
         $editRequest->update([
             'status' => 'approved',
-            'approved_by_admin_id' => auth()->id(),
+            'approved_by_admin_id' => Auth::user()->id,
         ]);
 
         return redirect()->back()->with('success', 'Perubahan Trip (termasuk Kilometer) berhasil disetujui!');
@@ -278,14 +314,14 @@ class TripController extends Controller
     public function rejectEdit(TripEditRequest $editRequest)
     {
         // Cek hak akses dan status seperti pada approveEdit
-        if ($editRequest->status !== 'pending' || auth()->user()->role !== 'admin') {
+        if ($editRequest->status !== 'pending' || Auth::user()->role !== 'admin') {
             return redirect()->back()->with('error', 'Akses ditolak atau permintaan sudah diproses.');
         }
 
         // Hanya update status menjadi 'rejected'
         $editRequest->update([
             'status' => 'rejected',
-            'approved_by_admin_id' => auth()->id(), // Mencatat admin yang menolak
+            'approved_by_admin_id' => Auth::user()->id, // Mencatat admin yang menolak
         ]);
 
         return redirect()->back()->with('success', 'Permintaan perubahan berhasil ditolak.');
