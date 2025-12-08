@@ -85,7 +85,11 @@ export default function TripAdd({ kendaraans, drivers, auth }) {
         const timestamp = new Date().toISOString();
         const message = error?.message || String(error);
         const payload = { ...extra, inputData: getInputSnapshot() };
-        console.log("Error Log", { type, message, timestamp, payload });
+        toast.error(
+            "Error Log",
+            { type, message, timestamp, payload },
+            toastConfig
+        );
     };
 
     const compressAndConvertImage = (file) => {
