@@ -623,6 +623,7 @@ export default function TripAdd({ kendaraans, drivers, auth }) {
                                                         <Combobox.Input
                                                             className="block w-full pl-10 pr-3 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors text-base"
                                                             placeholder="Cari atau pilih driver"
+                                                            autoComplete="off"
                                                             onChange={(e) =>
                                                                 setDriverQuery(
                                                                     e.target
