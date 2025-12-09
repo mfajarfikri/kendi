@@ -75,7 +75,7 @@ export default function TripAdd({ kendaraans, drivers, auth }) {
         waktu_keberangkatan: data.waktu_keberangkatan,
         tujuan: data.tujuan,
         catatan: data.catatan,
-        km: (data.km || "").replace(/\./g, ""),
+        km: String(data.km ?? "").replace(/\./g, ""),
         penumpang: data.penumpang,
         lokasi: data.lokasi,
         photosCount: photos.length,
@@ -222,7 +222,7 @@ export default function TripAdd({ kendaraans, drivers, auth }) {
             formData.append("waktu_keberangkatan", data.waktu_keberangkatan);
             formData.append("tujuan", data.tujuan);
             formData.append("catatan", data.catatan || "");
-            formData.append("km", (data.km || "").replace(/\./g, ""));
+            formData.append("km", String(data.km ?? "").replace(/\./g, ""));
             formData.append("penumpang", data.penumpang || "");
             formData.append("lokasi", data.lokasi);
             photos.forEach((p) => formData.append("foto_berangkat[]", p));
@@ -403,9 +403,10 @@ export default function TripAdd({ kendaraans, drivers, auth }) {
                                                                 merek: selected.merek,
                                                                 plat_kendaraan:
                                                                     selected.plat_kendaraan,
-                                                                km:
-                                                                    selected.km ||
-                                                                    "",
+                                                                km: String(
+                                                                    selected.km ??
+                                                                        ""
+                                                                ),
                                                                 status:
                                                                     selected.status ||
                                                                     "",
