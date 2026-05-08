@@ -165,7 +165,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             submitFormData.append("plat_kendaraan", formData.plat_kendaraan);
             submitFormData.append(
                 "waktu_kedatangan",
-                formData.waktu_kedatangan
+                formData.waktu_kedatangan,
             );
             submitFormData.append("lokasi", formData.lokasi);
 
@@ -193,7 +193,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                 onSuccess: (page) => {
                     toast.success(
                         `Kendaraan ${formData.plat_kendaraan} berhasil ditambahkan!`,
-                        toastConfig
+                        toastConfig,
                     );
 
                     // Update state tamus dengan data terbaru
@@ -206,7 +206,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                         plat_kendaraan: "",
                         waktu_kedatangan: dateFormat(
                             new Date(),
-                            "yyyy-mm-dd'T'HH:MM"
+                            "yyyy-mm-dd'T'HH:MM",
                         ),
                         foto_kendaraan: [],
                     });
@@ -240,7 +240,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             (existingFile) =>
                 existingFile.name === newFile.name &&
                 existingFile.size === newFile.size &&
-                existingFile.lastModified === newFile.lastModified
+                existingFile.lastModified === newFile.lastModified,
         );
     };
 
@@ -291,12 +291,12 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                 {
                                     type: "image/jpeg",
                                     lastModified: Date.now(),
-                                }
+                                },
                             );
                             resolve(newFile);
                         },
                         "image/jpeg",
-                        0.75
+                        0.75,
                     );
                 };
 
@@ -347,7 +347,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                     if (isFileExists(file)) {
                         toast.warning(
                             `File "${file.name}" sudah dipilih!`,
-                            toastConfig
+                            toastConfig,
                         );
                         continue;
                     }
@@ -366,7 +366,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                     console.error("Error processing file:", error);
                     toast.error(
                         `Gagal memproses file "${file.name}": ${error.message}`,
-                        toastConfig
+                        toastConfig,
                     );
                 }
             }
@@ -435,7 +435,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
     const removePhoto = (index) => {
         setPhotos((prevPhotos) => prevPhotos.filter((_, i) => i !== index));
         setPreviewPhotos((prevPreviews) =>
-            prevPreviews.filter((_, i) => i !== index)
+            prevPreviews.filter((_, i) => i !== index),
         );
         toast.info("Foto berhasil dihapus!", toastConfig);
     };
@@ -463,7 +463,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
 
                 if (dataToExport.length === 0) {
                     toast.warning(
-                        `Tidak ada data untuk bulan ${month + 1}/${year}`
+                        `Tidak ada data untuk bulan ${month + 1}/${year}`,
                     );
                     return;
                 }
@@ -485,7 +485,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                 // Set nama file dengan tanggal hari ini
                 fileName = `Data_Kendaraan_Tamu_All_${dateFormat(
                     new Date(),
-                    "dd-mm-yyyy"
+                    "dd-mm-yyyy",
                 )}.xlsx`;
             }
 
@@ -495,7 +495,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                 "No Polisi": tamu.plat_kendaraan,
                 "Waktu Kedatangan": dateFormat(
                     tamu.waktu_kedatangan,
-                    "dd/mm/yyyy HH:MM:ss"
+                    "dd/mm/yyyy HH:MM:ss",
                 ),
                 "Waktu Kepergian": tamu.waktu_kepergian
                     ? dateFormat(tamu.waktu_kepergian, "dd/mm/yyyy HH:MM:ss")
@@ -528,7 +528,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                     month: "long",
                 });
                 toast.success(
-                    `Data berhasil diexport ke Excel untuk bulan ${monthName} ${year}`
+                    `Data berhasil diexport ke Excel untuk bulan ${monthName} ${year}`,
                 );
             } else {
                 toast.success("Semua data berhasil diexport ke Excel");
@@ -566,7 +566,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             const formData = new FormData();
             formData.append(
                 "waktu_kepergian",
-                dateFormat(new Date(), "yyyy-mm-dd'T'HH:MM:ss")
+                dateFormat(new Date(), "yyyy-mm-dd'T'HH:MM:ss"),
             );
 
             // Append setiap foto dengan nama field yang konsisten
@@ -578,7 +578,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             console.log("Closing tamu data:", {
                 waktu_kepergian: dateFormat(
                     new Date(),
-                    "yyyy-mm-dd'T'HH:MM:ss"
+                    "yyyy-mm-dd'T'HH:MM:ss",
                 ),
                 photos: photos.map((p) => ({
                     name: p.name,
@@ -599,7 +599,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                 onSuccess: (page) => {
                     toast.success(
                         `Kendaraan ${selectedTamu.plat_kendaraan} berhasil ditutup!`,
-                        toastConfig
+                        toastConfig,
                     );
 
                     // Update state tamus dengan data terbaru
@@ -631,7 +631,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             console.error("Error closing tamu:", error);
             toast.error(
                 "Terjadi kesalahan saat menutup data tamu",
-                toastConfig
+                toastConfig,
             );
             setIsClosingTamu(false);
         }
@@ -645,7 +645,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             // Gunakan accept yang lebih spesifik untuk memastikan kompatibilitas
             fileInputRefClose.current.setAttribute(
                 "accept",
-                "image/jpeg,image/png,image/jpg"
+                "image/jpeg,image/png,image/jpg",
             );
             fileInputRefClose.current.click();
         }
@@ -659,7 +659,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             // Gunakan accept yang lebih spesifik untuk memastikan kompatibilitas
             fileInputRefClose.current.setAttribute(
                 "accept",
-                "image/jpeg,image/png,image/jpg"
+                "image/jpeg,image/png,image/jpg",
             );
             fileInputRefClose.current.click();
         }
@@ -697,7 +697,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                     if (isFileExists(file)) {
                         toast.warning(
                             `File "${file.name}" sudah dipilih!`,
-                            toastConfig
+                            toastConfig,
                         );
                         continue;
                     }
@@ -716,7 +716,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                     console.error("Error processing file:", error);
                     toast.error(
                         `Gagal memproses file "${file.name}": ${error.message}`,
-                        toastConfig
+                        toastConfig,
                     );
                 }
             }
@@ -802,7 +802,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                 <p className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
                                     {
                                         tamus.filter(
-                                            (tamu) => tamu.status === "New"
+                                            (tamu) => tamu.status === "New",
                                         ).length
                                     }
                                 </p>
@@ -821,7 +821,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                 <p className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">
                                     {
                                         tamus.filter(
-                                            (tamu) => tamu.status === "Trip"
+                                            (tamu) => tamu.status === "Trip",
                                         ).length
                                     }
                                 </p>
@@ -847,67 +847,68 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
 
                 <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-lg overflow-hidden">
                     <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-                        <div className="relative grid grid-cols-1 sm:grid-cols-4 gap-6 items-center">
-                            <div className="max-w-full sm:w-full sm:col-span-1">
-                                <div className="relative">
+                        <div className="flex flex-col xl:flex-row gap-4 items-center justify-between">
+                            {/* Bagian Kiri: Search dan Filters */}
+                            <div className="flex flex-col md:flex-row flex-wrap items-center gap-3 w-full xl:flex-1">
+                                {/* Search Bar */}
+                                <div className="relative w-full md:w-72">
                                     <input
                                         type="text"
                                         placeholder="Cari kendaraan..."
-                                        className="w-full pl-12 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
+                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-sm text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200"
                                         value={searchTerm}
                                         onChange={(e) =>
                                             setSearchTerm(e.target.value)
                                         }
                                     />
-                                    <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
+                                    <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-2 sm:col-span-1">
-                                <div className="relative w-full">
-                                    <input
-                                        type="date"
-                                        value={startDate}
-                                        onChange={(e) => {
-                                            setStartDate(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
-                                        aria-label="Tanggal mulai kedatangan"
-                                    />
-                                    <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+
+                                {/* Filter Tanggal */}
+                                <div className="flex items-center gap-2 w-full md:w-auto">
+                                    <div className="relative flex-1 md:w-36">
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={(e) => {
+                                                setStartDate(e.target.value);
+                                                setCurrentPage(1);
+                                            }}
+                                            className="w-full pl-9 pr-2 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                                            aria-label="Tanggal mulai"
+                                        />
+                                        <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                                    </div>
+                                    <span className="text-gray-400 text-xs">
+                                        s/d
+                                    </span>
+                                    <div className="relative flex-1 md:w-36">
+                                        <input
+                                            type="date"
+                                            value={endDate}
+                                            onChange={(e) => {
+                                                setEndDate(e.target.value);
+                                                setCurrentPage(1);
+                                            }}
+                                            className="w-full pl-9 pr-2 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                                            aria-label="Tanggal akhir"
+                                        />
+                                        <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                                    </div>
                                 </div>
-                                <span className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                                    –
-                                </span>
-                                <div className="relative w-full">
-                                    <input
-                                        type="date"
-                                        value={endDate}
-                                        onChange={(e) => {
-                                            setEndDate(e.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                        className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
-                                        aria-label="Tanggal akhir kedatangan"
-                                    />
-                                    <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                </div>
-                            </div>
-                            <div className="flex items-center sm:col-span-1 justify-center bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 shadow-sm">
-                                <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
-                                    Tampilkan
-                                </span>
-                                <div className="ml-3 relative">
+
+                                {/* Pemilih Jumlah Baris */}
+                                <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 shadow-sm w-full md:w-auto justify-center md:justify-start">
+                                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
+                                        Tampilkan
+                                    </span>
                                     <Listbox
                                         value={itemsPerPage}
-                                        onChange={(val) =>
-                                            handleItemsPerPageChange(val)
-                                        }
-                                        aria-label="Tampilkan per halaman"
+                                        onChange={handleItemsPerPageChange}
                                     >
                                         <div className="relative">
-                                            <Listbox.Button className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium px-3 py-1.5 border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                                {itemsPerPage} baris/halaman
+                                            <Listbox.Button className="bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold px-3 py-1.5 border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                {itemsPerPage}
                                             </Listbox.Button>
                                             <Transition
                                                 as={Fragment}
@@ -918,48 +919,50 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                                 leaveFrom="opacity-100"
                                                 leaveTo="opacity-0"
                                             >
-                                                <Listbox.Options className="absolute top-full left-0 z-[9999] mt-1 w-44 overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                                                    {[8, 16].map((opt) => (
-                                                        <Listbox.Option
-                                                            key={opt}
-                                                            value={opt}
-                                                            className={({
-                                                                active,
-                                                            }) =>
-                                                                `${
-                                                                    active
-                                                                        ? "bg-blue-50 dark:bg-blue-900/30"
-                                                                        : ""
-                                                                } cursor-pointer select-none relative py-2 pl-3 pr-3 text-gray-800 dark:text-gray-200`
-                                                            }
-                                                        >
-                                                            {opt} baris
-                                                        </Listbox.Option>
-                                                    ))}
+                                                <Listbox.Options className="absolute top-full left-0 z-[9999] mt-2 w-20 overflow-auto rounded-xl bg-white dark:bg-gray-800 py-1 text-xs shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-gray-700 text-center">
+                                                    {[8, 16, 32, 50].map(
+                                                        (opt) => (
+                                                            <Listbox.Option
+                                                                key={opt}
+                                                                value={opt}
+                                                                className={({
+                                                                    active,
+                                                                }) =>
+                                                                    `${
+                                                                        active
+                                                                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                                                                            : "text-gray-700 dark:text-gray-300"
+                                                                    } cursor-pointer select-none relative text-center py-2 font-bold`
+                                                                }
+                                                            >
+                                                                {opt}
+                                                            </Listbox.Option>
+                                                        ),
+                                                    )}
                                                 </Listbox.Options>
                                             </Transition>
                                         </div>
                                     </Listbox>
                                 </div>
                             </div>
-                            <div className="flex flex-col sm:flex-row gap-2 sm:col-span-1 sm:justify-center">
-                                {/* Button Tambah Data */}
+
+                            {/* Bagian Kanan: Tombol Aksi */}
+                            <div className="flex items-center gap-3 w-full xl:w-auto">
                                 <button
                                     onClick={() => setShowPopup(true)}
-                                    className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md w-full sm:w-auto"
+                                    className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-bold text-sm shadow-md hover:shadow-lg active:scale-95 transform"
                                 >
-                                    <FaCar className="text-lg" />
-                                    <span>Kendaraan Masuk</span>
+                                    <FaPlus className="text-xs" />
+                                    <span>Tamu Baru</span>
                                 </button>
 
-                                {/* Dropdown Export */}
                                 {auth.user.role === "admin" && (
                                     <button
                                         onClick={() => setShowExportModal(true)}
-                                        className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md w-full sm:w-auto"
+                                        className="flex-1 xl:flex-none flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-bold text-sm shadow-md hover:shadow-lg active:scale-95 transform"
                                     >
-                                        <FaFileExcel className="text-lg" />
-                                        <span>Export Excel</span>
+                                        <FaFileExcel className="text-sm" />
+                                        <span>Export</span>
                                     </button>
                                 )}
                             </div>
@@ -969,198 +972,199 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                         {isLoading ? (
                             <TableSkeleton />
                         ) : (
-                            <table className="w-full">
-                                <thead className="bg-gray-50 dark:bg-gray-700/60">
-                                    <tr>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            No
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            No Polisi
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Waktu Kedatangan
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Waktu Kepergian
-                                        </th>
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Status
-                                        </th>
-                                        {auth.user.role === "admin" && (
-                                            <>
-                                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                            <div className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                <table className="min-w-full overflow-visible">
+                                    <thead className="bg-gray-50 dark:bg-gray-700/60">
+                                        <tr>
+                                            <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                No
+                                            </th>
+                                            <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                No Polisi
+                                            </th>
+                                            <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Waktu Kedatangan
+                                            </th>
+                                            <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Waktu Kepergian
+                                            </th>
+                                            <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                Status
+                                            </th>
+                                            {auth.user.role === "admin" && (
+                                                <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                                                     Lokasi
                                                 </th>
-                                            </>
-                                        )}
-                                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-[#1f2937] divide-y divide-gray-200 dark:divide-gray-700">
-                                    {currentItems.map((item, index) => (
-                                        <tr
-                                            key={index}
-                                            className="hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200"
-                                        >
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                                                {indexOfFirstItem + index + 1}
-                                            </td>
-
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                                                <span className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-md text-sm hover:bg-blue-200 dark:hover:bg-blue-800 transition-colors">
-                                                    {item.plat_kendaraan}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                                                {dateFormat(
-                                                    item.waktu_kedatangan,
-                                                    "dd mmmm yyyy, HH:MM:ss"
-                                                )}{" "}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                                                {item.waktu_kepergian
-                                                    ? dateFormat(
-                                                          item.waktu_kepergian,
-                                                          "dd mmmm yyyy, HH:MM:ss"
-                                                      )
-                                                    : "-"}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                {item.status === "New" ? (
-                                                    <span className="px-3 py-1 text-sm font-medium rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 items-center w-auto inline-flex">
-                                                        <span className="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2 animate-pulse"></span>
-                                                        {item.status}
-                                                    </span>
-                                                ) : (
-                                                    <span className="px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 items-center w-auto inline-flex">
-                                                        <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
-                                                        {item.status}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            {auth.user.role === "admin" && (
-                                                <>
-                                                    <td>
-                                                        <span
-                                                            className={`${
-                                                                item.lokasi ===
-                                                                "Karawang"
-                                                                    ? "bg-rose-100 dark:bg-rose-900 text-rose-800 dark:text-rose-200 hover:bg-rose-200 dark:hover:bg-rose-800"
-                                                                    : "bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-200 dark:hover:bg-indigo-800"
-                                                            } px-2 py-1 rounded-md text-sm font-medium transition-colors`}
-                                                        >
-                                                            {item.lokasi}
-                                                        </span>
-                                                    </td>
-                                                </>
                                             )}
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <Menu
-                                                    as="div"
-                                                    className="relative inline-block text-left"
-                                                >
-                                                    <Menu.Button className="flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-1.5 rounded-lg shadow-sm hover:shadow-md">
-                                                        <FaEllipsisV className="w-4 h-4" />
-                                                    </Menu.Button>
+                                            <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                                action
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="bg-white dark:bg-[#1f2937] divide-y divide-gray-200 dark:divide-gray-700">
+                                        {currentItems.map((item, index) => (
+                                            <tr
+                                                key={index}
+                                                className="hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200"
+                                            >
+                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                    {indexOfFirstItem +
+                                                        index +
+                                                        1}
+                                                </td>
 
-                                                    <Transition
-                                                        as={Fragment}
-                                                        enter="transition ease-out duration-100"
-                                                        enterFrom="transform opacity-0 scale-95"
-                                                        enterTo="transform opacity-100 scale-100"
-                                                        leave="transition ease-in duration-75"
-                                                        leaveFrom="transform opacity-100 scale-100"
-                                                        leaveTo="transform opacity-0 scale-95"
+                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                    <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-2 py-1 rounded-md text-sm font-medium">
+                                                        {item.plat_kendaraan}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                    <div className="flex items-center">
+                                                        <FaCalendarAlt className="text-blue-500 dark:text-blue-400 mr-2 flex-shrink-0" />
+                                                        <span>
+                                                            {dateFormat(
+                                                                item.waktu_kedatangan,
+                                                                "dd mmmm yyyy, HH:MM",
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                    <div className="flex items-center">
+                                                        {item.waktu_kepergian ? (
+                                                            <>
+                                                                <FaCheck className="text-green-500 dark:text-green-400 mr-2 flex-shrink-0" />
+                                                                <span>
+                                                                    {dateFormat(
+                                                                        item.waktu_kepergian,
+                                                                        "dd mmmm yyyy, HH:MM",
+                                                                    )}
+                                                                </span>
+                                                            </>
+                                                        ) : (
+                                                            <div className="inline-flex items-center text-red-500 dark:text-red-400">
+                                                                <FaClock className="mr-2 animate-pulse" />
+                                                                <span>
+                                                                    - - - , -:-
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                                                    {item.status === "New" ? (
+                                                        <span className="px-3 py-1 text-sm font-medium rounded-full bg-yellow-100 text-yellow-700 dark:bg-yellow-900/50 dark:text-yellow-300 items-center w-auto inline-flex">
+                                                            <span className="inline-block w-2 h-2 rounded-full bg-yellow-500 mr-2 animate-pulse"></span>
+                                                            Masuk
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-3 py-1 text-sm font-medium rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300 items-center w-auto inline-flex">
+                                                            <span className="inline-block w-2 h-2 rounded-full bg-green-500 mr-2 animate-pulse"></span>
+                                                            Keluar
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                {auth.user.role === "admin" && (
+                                                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                        {item.lokasi ?? "-"}
+                                                    </td>
+                                                )}
+                                                <td className="px-4 py-3 text-sm">
+                                                    <Menu
+                                                        as="div"
+                                                        className="relative inline-block text-left"
                                                     >
-                                                        <Menu.Items className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700">
-                                                            <div className="py-1">
-                                                                {item.status ===
-                                                                "New" ? (
+                                                        <Menu.Button className="flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-1.5 rounded-lg shadow-sm hover:shadow-md">
+                                                            <FaEllipsisV className="w-4 h-4" />
+                                                        </Menu.Button>
+
+                                                        <Transition
+                                                            as={Fragment}
+                                                            enter="transition ease-out duration-100"
+                                                            enterFrom="transform opacity-0 scale-95"
+                                                            enterTo="transform opacity-100 scale-100"
+                                                            leave="transition ease-in duration-75"
+                                                            leaveFrom="transform opacity-100 scale-100"
+                                                            leaveTo="transform opacity-0 scale-95"
+                                                        >
+                                                            <Menu.Items
+                                                                anchor="bottom end"
+                                                                className="w-48 z-50 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 overflow-visible [--anchor-gap:8px]"
+                                                            >
+                                                                <div className="py-1 divide-y divide-gray-200 dark:divide-gray-700">
+                                                                    {item.status ===
+                                                                    "New" ? (
+                                                                        <Menu.Item>
+                                                                            {({
+                                                                                active,
+                                                                            }) => (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        setSelectedTamu(
+                                                                                            item,
+                                                                                        );
+                                                                                        setCloseKendaraan(
+                                                                                            true,
+                                                                                        );
+                                                                                    }}
+                                                                                    className={`${
+                                                                                        active
+                                                                                            ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
+                                                                                            : "text-gray-700 dark:text-gray-200"
+                                                                                    } w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors duration-200`}
+                                                                                >
+                                                                                    <FaCarSide className="text-teal-500 text-lg flex-shrink-0" />
+                                                                                    <span className="font-medium">
+                                                                                        Tutup
+                                                                                        Tamu
+                                                                                    </span>
+                                                                                </button>
+                                                                            )}
+                                                                        </Menu.Item>
+                                                                    ) : (
+                                                                        <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-3 bg-gray-50 dark:bg-gray-900">
+                                                                            <FaCheck className="text-green-500 text-lg flex-shrink-0" />
+                                                                            <span className="font-medium">
+                                                                                Tamu
+                                                                                Selesai
+                                                                            </span>
+                                                                        </div>
+                                                                    )}
+
                                                                     <Menu.Item>
                                                                         {({
                                                                             active,
                                                                         }) => (
                                                                             <button
                                                                                 onClick={() => {
-                                                                                    setSelectedTamu(
-                                                                                        item
-                                                                                    );
-                                                                                    setCloseKendaraan(
-                                                                                        true
+                                                                                    showTamuDetail(
+                                                                                        item,
                                                                                     );
                                                                                 }}
                                                                                 className={`${
                                                                                     active
                                                                                         ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
                                                                                         : "text-gray-700 dark:text-gray-200"
-                                                                                } w-full text-left px-4 py-2 text-sm flex items-center gap-2`}
+                                                                                } w-full text-left px-4 py-3 text-sm flex items-center gap-3 transition-colors duration-200`}
                                                                             >
-                                                                                <FaCarSide className="text-teal-500" />
-                                                                                <span>
-                                                                                    Tutup
-                                                                                    Tamu
+                                                                                <FaEye className="text-blue-500 text-lg flex-shrink-0" />
+                                                                                <span className="font-medium">
+                                                                                    Lihat
+                                                                                    Detail
                                                                                 </span>
                                                                             </button>
                                                                         )}
                                                                     </Menu.Item>
-                                                                ) : (
-                                                                    <Menu.Item>
-                                                                        {({
-                                                                            active,
-                                                                        }) => (
-                                                                            <div
-                                                                                className={`${
-                                                                                    active
-                                                                                        ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                                                        : "text-gray-700 dark:text-gray-200"
-                                                                                } px-4 py-2 text-sm flex items-center gap-2`}
-                                                                            >
-                                                                                <FaCheck className="text-blue-500" />
-                                                                                <span>
-                                                                                    Trip
-                                                                                    Selesai
-                                                                                </span>
-                                                                            </div>
-                                                                        )}
-                                                                    </Menu.Item>
-                                                                )}
-
-                                                                <Menu.Item>
-                                                                    {({
-                                                                        active,
-                                                                    }) => (
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                showTamuDetail(
-                                                                                    item
-                                                                                );
-                                                                            }}
-                                                                            className={`${
-                                                                                active
-                                                                                    ? "bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white"
-                                                                                    : "text-gray-700 dark:text-gray-200"
-                                                                            } w-full text-left px-4 py-2 text-sm flex items-center gap-2`}
-                                                                        >
-                                                                            <FaEye className="text-blue-500" />
-                                                                            <span>
-                                                                                Lihat
-                                                                                Detail
-                                                                            </span>
-                                                                        </button>
-                                                                    )}
-                                                                </Menu.Item>
-                                                            </div>
-                                                        </Menu.Items>
-                                                    </Transition>
-                                                </Menu>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                                                                </div>
+                                                            </Menu.Items>
+                                                        </Transition>
+                                                    </Menu>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
                         )}
 
                         {/* Pagination baru yang lebih modern */}
@@ -1222,7 +1226,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                                     </button>
                                                 )}
                                             </React.Fragment>
-                                        )
+                                        ),
                                     )}
                                 </div>
 
@@ -1362,7 +1366,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                                             type="button"
                                                             onClick={() =>
                                                                 removePhoto(
-                                                                    index
+                                                                    index,
                                                                 )
                                                             }
                                                             className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200"
@@ -1370,7 +1374,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                                             <FaTimes className="w-4 h-4" />
                                                         </button>
                                                     </div>
-                                                )
+                                                ),
                                             )}
                                             {previewPhotos.length < 5 && (
                                                 <label className="flex flex-col items-center justify-center h-32 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:border-blue-500 dark:hover:border-blue-500 transition-colors">
@@ -1666,14 +1670,14 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                         <input
                                             type="month"
                                             value={`${exportDate.getFullYear()}-${String(
-                                                exportDate.getMonth() + 1
+                                                exportDate.getMonth() + 1,
                                             ).padStart(2, "0")}`}
                                             onChange={(e) => {
                                                 const [year, month] =
                                                     e.target.value.split("-");
                                                 const newDate = new Date(
                                                     year,
-                                                    month - 1
+                                                    month - 1,
                                                 );
                                                 setExportDate(newDate);
                                             }}
@@ -1795,7 +1799,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                         <p className="text-base font-medium text-gray-800 dark:text-white">
                                             {dateFormat(
                                                 selectedTamu.waktu_kedatangan,
-                                                "dd mmmm yyyy, HH:MM:ss"
+                                                "dd mmmm yyyy, HH:MM:ss",
                                             )}
                                         </p>
                                     </div>
@@ -1807,7 +1811,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                             {selectedTamu.waktu_kepergian
                                                 ? dateFormat(
                                                       selectedTamu.waktu_kepergian,
-                                                      "dd mmmm yyyy, HH:MM:ss"
+                                                      "dd mmmm yyyy, HH:MM:ss",
                                                   )
                                                 : "-"}
                                         </p>
@@ -1827,7 +1831,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                 selectedTamu.foto_kedatangan.length > 0 ? (
                                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                         {JSON.parse(
-                                            selectedTamu.foto_kedatangan
+                                            selectedTamu.foto_kedatangan,
                                         ).map((foto, index) => (
                                             <div
                                                 key={index}
@@ -1867,7 +1871,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                     selectedTamu.foto_kepergian.length > 0 ? (
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                             {JSON.parse(
-                                                selectedTamu.foto_kepergian
+                                                selectedTamu.foto_kepergian,
                                             ).map((foto, index) => (
                                                 <div
                                                     key={index}
@@ -1947,7 +1951,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                         type="text"
                                         value={dateFormat(
                                             selectedTamu.waktu_kedatangan,
-                                            "dd mmmm yyyy, HH:MM:ss"
+                                            "dd mmmm yyyy, HH:MM:ss",
                                         )}
                                         className="block w-full px-4 py-3 rounded-lg border-gray-300 bg-gray-100 cursor-not-allowed dark:border-gray-600 dark:bg-[#717171] dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors"
                                         disabled
@@ -1964,7 +1968,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                     type="text"
                                     value={dateFormat(
                                         new Date(),
-                                        "dd mmmm yyyy, HH:MM:ss"
+                                        "dd mmmm yyyy, HH:MM:ss",
                                     )}
                                     className="block w-full px-4 py-3 rounded-lg border-gray-300 bg-gray-100 cursor-not-allowed dark:border-gray-600 dark:bg-[#717171] dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors"
                                     disabled
@@ -2032,7 +2036,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                                             type="button"
                                                             onClick={() =>
                                                                 removePhoto(
-                                                                    index
+                                                                    index,
                                                                 )
                                                             }
                                                             className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors opacity-0 group-hover:opacity-100"
@@ -2040,7 +2044,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                                             <FaTimes />
                                                         </button>
                                                     </div>
-                                                )
+                                                ),
                                             )}
                                             {previewPhotos.length < 5 && (
                                                 <button

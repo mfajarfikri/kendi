@@ -435,7 +435,10 @@ export default function Driver({ drivers: initialDrivers }) {
                                                                     leaveFrom="transform opacity-100 scale-100"
                                                                     leaveTo="transform opacity-0 scale-95"
                                                                 >
-                                                                    <Menu.Items className="absolute z-[9999] right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none">
+                                                                    <Menu.Items
+                                                                        anchor="bottom end"
+                                                                        className="w-48 z-50 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 focus:outline-none [--anchor-gap:8px]"
+                                                                    >
                                                                         <div className="py-1">
                                                                             <Menu.Item>
                                                                                 {({

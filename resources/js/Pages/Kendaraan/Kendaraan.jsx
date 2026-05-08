@@ -47,7 +47,7 @@ export default function Kendaraan({ kendaraans }) {
                       .includes(searchTerm.toLowerCase()) ||
                   kendaraan?.status
                       ?.toLowerCase()
-                      .includes(searchTerm.toLowerCase())
+                      .includes(searchTerm.toLowerCase()),
           )
         : [];
 
@@ -57,7 +57,7 @@ export default function Kendaraan({ kendaraans }) {
     const indexOfFirstItem = indexOfLastItem - itemsPerPage;
     const currentItems = filteredKendaraans.slice(
         indexOfFirstItem,
-        indexOfLastItem
+        indexOfLastItem,
     );
 
     const paginate = (pageNumber) => setCurrentPage(pageNumber);
@@ -132,7 +132,7 @@ export default function Kendaraan({ kendaraans }) {
                         });
                         console.error(errors);
                     },
-                }
+                },
             );
         } else {
             router.post("/kendaraan", formDataToSend, {
@@ -349,7 +349,7 @@ export default function Kendaraan({ kendaraans }) {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                                                         {new Intl.NumberFormat(
-                                                            "id-ID"
+                                                            "id-ID",
                                                         ).format(kendaraan.km)}
                                                         {" KM"}
                                                     </td>
@@ -360,9 +360,9 @@ export default function Kendaraan({ kendaraans }) {
                                                                 "Tersedia"
                                                                     ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
                                                                     : kendaraan.status ===
-                                                                      "Digunakan"
-                                                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
-                                                                    : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                                                        "Digunakan"
+                                                                      ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                                                      : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                                                             }`}
                                                         >
                                                             {kendaraan.status}
@@ -386,7 +386,10 @@ export default function Kendaraan({ kendaraans }) {
                                                                 leaveFrom="transform opacity-100 scale-100"
                                                                 leaveTo="transform opacity-0 scale-95"
                                                             >
-                                                                <Menu.Items className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-700">
+                                                                <Menu.Items
+                                                                    anchor="bottom end"
+                                                                    className="w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700 [--anchor-gap:8px]"
+                                                                >
                                                                     <div className="py-1">
                                                                         <Menu.Item>
                                                                             {({
@@ -395,7 +398,7 @@ export default function Kendaraan({ kendaraans }) {
                                                                                 <button
                                                                                     onClick={() =>
                                                                                         openModal(
-                                                                                            kendaraan
+                                                                                            kendaraan,
                                                                                         )
                                                                                     }
                                                                                     className={`${
@@ -418,7 +421,7 @@ export default function Kendaraan({ kendaraans }) {
                                                                                 <button
                                                                                     onClick={() =>
                                                                                         handleDelete(
-                                                                                            kendaraan.id
+                                                                                            kendaraan.id,
                                                                                         )
                                                                                     }
                                                                                     className={`${
@@ -440,7 +443,7 @@ export default function Kendaraan({ kendaraans }) {
                                                         </Menu>
                                                     </td>
                                                 </tr>
-                                            )
+                                            ),
                                         )}
                                     </tbody>
                                 </table>
@@ -457,7 +460,7 @@ export default function Kendaraan({ kendaraans }) {
                                 <span className="font-medium mx-1">
                                     {Math.min(
                                         indexOfLastItem,
-                                        filteredKendaraans.length
+                                        filteredKendaraans.length,
                                     )}
                                 </span>
                                 of{" "}
@@ -503,7 +506,7 @@ export default function Kendaraan({ kendaraans }) {
                                                     </button>
                                                 )}
                                             </React.Fragment>
-                                        )
+                                        ),
                                     )}
                                 </div>
 

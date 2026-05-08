@@ -1,8 +1,9 @@
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, Link, useForm, router } from "@inertiajs/react";
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, Fragment } from "react";
 import { Listbox, Transition, Menu } from "@headlessui/react";
 import dateFormat, { masks } from "dateformat";
+
 import {
     FaCar,
     FaArrowRight,
@@ -1328,16 +1329,11 @@ export default function Trip({
                                                         )}
                                                     </td>
                                                     <td className="px-4 py-3 text-sm">
-                                                        <div className="dropdown-container relative">
-                                                            <button
-                                                                onClick={() =>
-                                                                    toggleDropdown(
-                                                                        item.id,
-                                                                    )
-                                                                }
-                                                                type="button"
-                                                                className="flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-1.5 rounded-lg shadow-sm hover:shadow-md"
-                                                            >
+                                                        <Menu
+                                                            as="div"
+                                                            className="relative inline-block text-left"
+                                                        >
+                                                            <Menu.Button className="flex items-center justify-center bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 p-1.5 rounded-lg shadow-sm hover:shadow-md">
                                                                 <svg
                                                                     xmlns="http://www.w3.org/2000/svg"
                                                                     className="h-4 w-4"
@@ -1354,35 +1350,52 @@ export default function Trip({
                                                                         d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"
                                                                     />
                                                                 </svg>
-                                                            </button>
+                                                            </Menu.Button>
 
-                                                            {openDropdown ===
-                                                                item.id && (
-                                                                <div className="absolute right-0 mt-2 w-48 z-50 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 overflow-visible">
+                                                            <Transition
+                                                                as={Fragment}
+                                                                enter="transition ease-out duration-100"
+                                                                enterFrom="transform opacity-0 scale-95"
+                                                                enterTo="transform opacity-100 scale-100"
+                                                                leave="transition ease-in duration-75"
+                                                                leaveFrom="transform opacity-100 scale-100"
+                                                                leaveTo="transform opacity-0 scale-95"
+                                                            >
+                                                                <Menu.Items
+                                                                    anchor="bottom end"
+                                                                    className="w-48 z-50 bg-white dark:bg-gray-800 rounded-md shadow-lg border border-gray-200 dark:border-gray-700 overflow-visible [--anchor-gap:8px]"
+                                                                >
                                                                     <div className="py-1 divide-y divide-gray-200 dark:divide-gray-700">
                                                                         {item.status ===
                                                                         "Sedang Berjalan" ? (
-                                                                            <button
-                                                                                onClick={() => {
-                                                                                    router.visit(
-                                                                                        route(
-                                                                                            "trips.close.form",
-                                                                                            item.code_trip,
-                                                                                        ),
-                                                                                    );
-                                                                                    setOpenDropdown(
-                                                                                        null,
-                                                                                    );
-                                                                                }}
-                                                                                type="button"
-                                                                                className="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors duration-200"
-                                                                            >
-                                                                                <FaCarSide className="text-teal-500 text-lg flex-shrink-0" />
-                                                                                <span className="font-medium">
-                                                                                    Tutup
-                                                                                    Trip
-                                                                                </span>
-                                                                            </button>
+                                                                            <Menu.Item>
+                                                                                {({
+                                                                                    active,
+                                                                                }) => (
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            router.visit(
+                                                                                                route(
+                                                                                                    "trips.close.form",
+                                                                                                    item.code_trip,
+                                                                                                ),
+                                                                                            );
+                                                                                        }}
+                                                                                        type="button"
+                                                                                        className={`${
+                                                                                            active
+                                                                                                ? "bg-gray-100 dark:bg-gray-700"
+                                                                                                : ""
+                                                                                        } w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors duration-200`}
+                                                                                    >
+                                                                                        <FaCarSide className="text-teal-500 text-lg flex-shrink-0" />
+                                                                                        <span className="font-medium">
+                                                                                            Tutup
+                                                                                            Trip
+                                                                                        </span>
+                                                                                    </button>
+                                                                                )}
+                                                                            </Menu.Item>
                                                                         ) : (
                                                                             <div className="px-4 py-3 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-3 bg-gray-50 dark:bg-gray-900">
                                                                                 <FaCheck className="text-green-500 text-lg flex-shrink-0" />
@@ -1393,31 +1406,38 @@ export default function Trip({
                                                                             </div>
                                                                         )}
 
-                                                                        <button
-                                                                            onClick={() => {
-                                                                                router.visit(
-                                                                                    route(
-                                                                                        "trips.show",
-                                                                                        item.code_trip,
-                                                                                    ),
-                                                                                );
-                                                                                setOpenDropdown(
-                                                                                    null,
-                                                                                );
-                                                                            }}
-                                                                            type="button"
-                                                                            className="w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 transition-colors duration-200"
-                                                                        >
-                                                                            <FaEye className="text-blue-500 text-lg flex-shrink-0" />
-                                                                            <span className="font-medium">
-                                                                                Lihat
-                                                                                Detail
-                                                                            </span>
-                                                                        </button>
+                                                                        <Menu.Item>
+                                                                            {({
+                                                                                active,
+                                                                            }) => (
+                                                                                <button
+                                                                                    onClick={() => {
+                                                                                        router.visit(
+                                                                                            route(
+                                                                                                "trips.show",
+                                                                                                item.code_trip,
+                                                                                            ),
+                                                                                        );
+                                                                                    }}
+                                                                                    type="button"
+                                                                                    className={`${
+                                                                                        active
+                                                                                            ? "bg-gray-100 dark:bg-gray-700"
+                                                                                            : ""
+                                                                                    } w-full text-left px-4 py-3 text-sm text-gray-700 dark:text-gray-200 flex items-center gap-3 transition-colors duration-200`}
+                                                                                >
+                                                                                    <FaEye className="text-blue-500 text-lg flex-shrink-0" />
+                                                                                    <span className="font-medium">
+                                                                                        Lihat
+                                                                                        Detail
+                                                                                    </span>
+                                                                                </button>
+                                                                            )}
+                                                                        </Menu.Item>
                                                                     </div>
-                                                                </div>
-                                                            )}
-                                                        </div>
+                                                                </Menu.Items>
+                                                            </Transition>
+                                                        </Menu>
                                                     </td>
                                                 </tr>
                                             ))}
