@@ -6,6 +6,7 @@ use App\Models\Kendaraan;
 use App\Models\Tamu;
 use App\Models\Trip;
 use App\Models\User;
+use App\Models\Driver;
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -26,7 +27,17 @@ class DatabaseSeeder extends Seeder
 
         Tamu::factory(10)->create();
 
-        Trip::factory(100)->create();
+        Trip::factory(200)->create([
+            'kendaraan_id' => function() {
+                return Kendaraan::inRandomOrder()->first()->id;
+            },
+            'driver_id' => function() {
+                return Driver::inRandomOrder()->first()->id;
+            },
+            'lokasi' => function() {
+                return User::where('role', 'admin')->whereIn('lokasi', ['Karawang', 'Purwakarta'])->inRandomOrder()->first()->lokasi ?? 'Karawang';
+            }
+        ]);
         // Kendaraan::factory(10)->create();
 
         // User::factory()->create([

@@ -1,7 +1,7 @@
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, Link, useForm, router } from "@inertiajs/react";
 import React, { useState, useEffect, useRef } from "react";
-import { Listbox, Transition } from "@headlessui/react";
+import { Listbox, Transition, Menu } from "@headlessui/react";
 import dateFormat, { masks } from "dateformat";
 import {
     FaCar,
@@ -13,6 +13,7 @@ import {
     FaFileExcel,
     FaChevronLeft,
     FaChevronRight,
+    FaChevronDown,
     FaEllipsisH,
     FaPlus,
     FaCamera,
@@ -36,6 +37,7 @@ import {
     FaCalendarTimes,
     FaCalendarMinus,
     FaCalendarPlus,
+    FaGasPump,
 } from "react-icons/fa";
 import * as XLSX from "xlsx";
 import Modal from "@/Components/ModalNew";
@@ -59,7 +61,8 @@ export default function Trip({
     const [selectedTrip, setSelectedTrip] = useState(null);
     const [isClosingTrip, setIsClosingTrip] = useState(false);
     const [showExportModal, setShowExportModal] = useState(false);
-    const [exportType, setExportType] = useState("all");
+    const [exportType, setExportType] = useState("month");
+    const [exportTarget, setExportTarget] = useState("trip"); // "trip" or "bbm"
     const [exportDate, setExportDate] = useState(new Date());
     const [isLoading, setIsLoading] = useState(true);
     const [openDropdown, setOpenDropdown] = useState(null);
@@ -166,6 +169,168 @@ export default function Trip({
         return () => clearInterval(timer);
     }, []);
 
+    // Export BBM ke Excel
+    const exportBBMToExcel = () => {
+        try {
+            const workbook = XLSX.utils.book_new();
+            let fileName = "";
+            let tripsWithBBM = [];
+
+            if (exportType === "month") {
+                const year = exportDate.getFullYear();
+                const month = exportDate.getMonth();
+                const monthName = exportDate.toLocaleString("id-ID", {
+                    month: "long",
+                });
+
+                tripsWithBBM = trips.filter((trip) => {
+                    if (!trip.waktu_keberangkatan || !trip.jumlah_liter)
+                        return false;
+                    const d = new Date(trip.waktu_keberangkatan);
+                    return d.getFullYear() === year && d.getMonth() === month;
+                });
+
+                if (tripsWithBBM.length === 0) {
+                    toast.warning(
+                        `Tidak ada data BBM untuk bulan ${monthName} ${year}`,
+                        toastConfig,
+                    );
+                    return;
+                }
+                fileName = `Laporan BBM ${monthName} ${year}.xlsx`;
+            } else {
+                tripsWithBBM = trips.filter(
+                    (trip) => trip.waktu_keberangkatan && trip.jumlah_liter,
+                );
+                if (tripsWithBBM.length === 0) {
+                    toast.warning(
+                        "Tidak ada data BBM untuk diexport",
+                        toastConfig,
+                    );
+                    return;
+                }
+                fileName = `Laporan BBM Semua Data ${dateFormat(new Date(), "dd-mm-yyyy")}.xlsx`;
+            }
+
+            // Fungsi Helper untuk membuat sheet per bulan
+            const createSheetForData = (data, sheetName) => {
+                const row1 = ["NO", "NOMOR POLISI"];
+                for (let i = 1; i <= 31; i++)
+                    row1.push(i === 1 ? "TANGGAL" : "");
+                row1.push("JUMLAH (Rp)");
+
+                const row2 = ["", "Kendaraan Roda Empat"];
+                for (let i = 1; i <= 31; i++) row2.push(i);
+
+                const aoaData = [row1, row2];
+                const vehicles = [
+                    ...new Set(kendaraans.map((k) => k.plat_kendaraan)),
+                ];
+
+                const formatRupiahExcel = (number) => {
+                    if (!number || number === 0) return 0;
+                    return Math.round(number);
+                };
+
+                vehicles.forEach((plat, idx) => {
+                    const row = [idx + 1, plat];
+                    let totalRupiah = 0;
+
+                    for (let day = 1; day <= 31; day++) {
+                        const dailyTrips = data
+                            .filter((t) => t.kendaraan?.plat_kendaraan === plat)
+                            .filter(
+                                (t) =>
+                                    new Date(
+                                        t.waktu_keberangkatan,
+                                    ).getDate() === day,
+                            );
+
+                        const dailyLiter = dailyTrips.reduce(
+                            (sum, t) => sum + (parseFloat(t.jumlah_liter) || 0),
+                            0,
+                        );
+                        totalRupiah += dailyTrips.reduce(
+                            (sum, t) =>
+                                sum + (parseFloat(t.total_harga_bbm) || 0),
+                            0,
+                        );
+
+                        row.push(
+                            dailyLiter > 0
+                                ? dailyLiter.toString().replace(".", ",")
+                                : "",
+                        );
+                    }
+                    row.push(
+                        totalRupiah > 0 ? formatRupiahExcel(totalRupiah) : 0,
+                    );
+                    aoaData.push(row);
+                });
+
+                const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
+
+                // Formatting
+                const range = XLSX.utils.decode_range(worksheet["!ref"]);
+                for (let r = 2; r <= range.e.r; r++) {
+                    const cellRef = XLSX.utils.encode_cell({ r: r, c: 33 });
+                    if (worksheet[cellRef]) {
+                        worksheet[cellRef].t = "n";
+                        worksheet[cellRef].z = "#,##0";
+                    }
+                }
+
+                worksheet["!merges"] = [
+                    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
+                    { s: { r: 0, c: 2 }, e: { r: 0, c: 32 } },
+                ];
+
+                const colWidths = [{ wch: 4 }, { wch: 18 }];
+                for (let i = 1; i <= 31; i++) colWidths.push({ wch: 4 });
+                colWidths.push({ wch: 15 });
+                worksheet["!cols"] = colWidths;
+
+                XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+            };
+
+            if (exportType === "month") {
+                const monthName = exportDate.toLocaleString("id-ID", {
+                    month: "long",
+                });
+                const year = exportDate.getFullYear();
+                createSheetForData(tripsWithBBM, `${monthName} ${year}`);
+            } else {
+                // Kelompokkan data berdasarkan Bulan & Tahun untuk Multiple Sheets
+                const groups = tripsWithBBM.reduce((acc, trip) => {
+                    const d = new Date(trip.waktu_keberangkatan);
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                    if (!acc[key]) acc[key] = [];
+                    acc[key].push(trip);
+                    return acc;
+                }, {});
+
+                // Urutkan kunci (YYYY-MM) secara kronologis
+                const sortedKeys = Object.keys(groups).sort();
+
+                sortedKeys.forEach((key) => {
+                    const [year, month] = key.split("-");
+                    const dateObj = new Date(year, parseInt(month) - 1);
+                    const monthName = dateObj.toLocaleString("id-ID", {
+                        month: "long",
+                    });
+                    createSheetForData(groups[key], `${monthName} ${year}`);
+                });
+            }
+
+            XLSX.writeFile(workbook, fileName);
+            toast.success(`Data BBM berhasil diexport`, toastConfig);
+            setShowExportModal(false);
+        } catch (error) {
+            console.error("Error exporting BBM:", error);
+            toast.error("Gagal mengexport data BBM", toastConfig);
+        }
+    };
+
     // Export ke Excel
     const exportToExcel = () => {
         try {
@@ -176,14 +341,14 @@ export default function Trip({
                 // Validasi bulan yang dipilih
                 const selectedMonth = exportDate
                     ? `${exportDate.getFullYear()}-${String(
-                          exportDate.getMonth() + 1
+                          exportDate.getMonth() + 1,
                       ).padStart(2, "0")}`
                     : "";
 
                 if (!selectedMonth) {
                     toast.error(
                         "Silakan pilih bulan terlebih dahulu!",
-                        toastConfig
+                        toastConfig,
                     );
                     return;
                 }
@@ -208,7 +373,7 @@ export default function Trip({
                     });
                     toast.warning(
                         `Tidak ada data untuk bulan ${monthName} ${year}`,
-                        toastConfig
+                        toastConfig,
                     );
                     return;
                 }
@@ -230,7 +395,7 @@ export default function Trip({
                 // Set nama file dengan tanggal hari ini
                 fileName = `Data Kendaraan Dinas All ${dateFormat(
                     new Date(),
-                    "dd-mm-yyyy"
+                    "dd-mm-yyyy",
                 )}.xlsx`;
             }
 
@@ -263,7 +428,7 @@ export default function Trip({
             XLSX.utils.book_append_sheet(
                 workbook,
                 worksheet,
-                "Data Trip Kendaraan"
+                "Data Trip Kendaraan",
             );
 
             // Atur lebar kolom
@@ -299,12 +464,12 @@ export default function Trip({
                 });
                 toast.success(
                     `Data berhasil diexport ke Excel untuk bulan ${monthName} ${exportDate.getFullYear()}`,
-                    toastConfig
+                    toastConfig,
                 );
             } else {
                 toast.success(
                     "Semua data berhasil diexport ke Excel",
-                    toastConfig
+                    toastConfig,
                 );
             }
 
@@ -355,16 +520,16 @@ export default function Trip({
     // Hitung statistik kendaraan
     const totalKendaraan = kendaraans.length;
     const kendaraanTersedia = kendaraans.filter(
-        (k) => k.status === "Tersedia"
+        (k) => k.status === "Tersedia",
     ).length;
     const kendaraanDigunakan = kendaraans.filter(
-        (k) => k.status === "Digunakan"
+        (k) => k.status === "Digunakan",
     ).length;
     const kendaraanPerawatan = kendaraans.filter(
-        (k) => k.status === "Dalam Perawatan"
+        (k) => k.status === "Dalam Perawatan",
     ).length;
     const kendaraanTersediaStatus = kendaraans.filter(
-        (k) => k.status === "Tersedia"
+        (k) => k.status === "Tersedia",
     );
 
     // Tambahkan state untuk close trip
@@ -418,12 +583,12 @@ export default function Trip({
                                 {
                                     type: "image/jpeg",
                                     lastModified: Date.now(),
-                                }
+                                },
                             );
                             resolve(newFile);
                         },
                         "image/jpeg",
-                        0.75
+                        0.75,
                     );
                 };
 
@@ -470,7 +635,7 @@ export default function Trip({
                     console.error("Error processing file:", error);
                     toast.error(
                         `Gagal memproses file "${file.name}": ${error.message}`,
-                        toastConfig
+                        toastConfig,
                     );
                 }
             }
@@ -528,7 +693,7 @@ export default function Trip({
     const removePhoto = (index) => {
         setPhotos((prevPhotos) => prevPhotos.filter((_, i) => i !== index));
         setPreviewPhotos((prevPreviews) =>
-            prevPreviews.filter((_, i) => i !== index)
+            prevPreviews.filter((_, i) => i !== index),
         );
         toast.info("Foto berhasil dihapus!", toastConfig);
     };
@@ -592,7 +757,7 @@ export default function Trip({
             // Gunakan accept yang lebih spesifik untuk memastikan kompatibilitas
             fileInputRefClose.current.setAttribute(
                 "accept",
-                "image/jpeg,image/png,image/jpg"
+                "image/jpeg,image/png,image/jpg",
             );
             fileInputRefClose.current.click();
         }
@@ -626,7 +791,7 @@ export default function Trip({
                     console.error("Error processing file:", error);
                     toast.error(
                         `Gagal memproses file "${file.name}": ${error.message}`,
-                        toastConfig
+                        toastConfig,
                     );
                 }
             }
@@ -697,7 +862,7 @@ export default function Trip({
     useEffect(() => {
         // Deteksi mode gelap dari preferensi sistem atau HTML
         const darkModeMediaQuery = window.matchMedia(
-            "(prefers-color-scheme: dark)"
+            "(prefers-color-scheme: dark)",
         );
         const htmlElement = document.documentElement;
 
@@ -809,139 +974,196 @@ export default function Trip({
                     {/* Table Section dengan Search Bar dan Export Button */}
                     <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 overflow-hidden">
                         <div className="p-4 sm:p-6 border-b border-gray-200 dark:border-gray-700">
-                            <div className="relative grid grid-cols-1 sm:grid-cols-6 gap-4 items-center">
-                                <div className="sm:col-span-1">
-                                    <div className="max-w-full sm:w-full">
-                                        <div className="relative">
+                            <div className="flex flex-col xl:flex-row gap-4 items-center justify-between">
+                                {/* Bagian Kiri: Search dan Filters */}
+                                <div className="flex flex-col md:flex-row flex-wrap items-center gap-3 w-full xl:flex-1">
+                                    {/* Search Bar */}
+                                    <div className="relative w-full md:w-72">
+                                        <input
+                                            type="text"
+                                            placeholder="Cari plat, kode, tujuan, driver..."
+                                            className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-sm text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all duration-200"
+                                            value={searchTerm}
+                                            onChange={(e) =>
+                                                setSearchTerm(e.target.value)
+                                            }
+                                        />
+                                        <FaSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+                                    </div>
+
+                                    {/* Filter Tanggal */}
+                                    <div className="flex items-center gap-2 w-full md:w-auto">
+                                        <div className="relative flex-1 md:w-36">
                                             <input
-                                                type="text"
-                                                placeholder="Cari kendaraan..."
-                                                className="w-full pl-12 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
-                                                value={searchTerm}
-                                                onChange={(e) =>
-                                                    setSearchTerm(
-                                                        e.target.value
-                                                    )
-                                                }
+                                                type="date"
+                                                value={startDate}
+                                                onChange={(e) => {
+                                                    setStartDate(
+                                                        e.target.value,
+                                                    );
+                                                    setCurrentPage(1);
+                                                }}
+                                                className="w-full pl-9 pr-2 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                                                aria-label="Tanggal mulai"
                                             />
-                                            <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-lg" />
+                                            <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
+                                        </div>
+                                        <span className="text-gray-400 text-xs">
+                                            s/d
+                                        </span>
+                                        <div className="relative flex-1 md:w-36">
+                                            <input
+                                                type="date"
+                                                value={endDate}
+                                                onChange={(e) => {
+                                                    setEndDate(e.target.value);
+                                                    setCurrentPage(1);
+                                                }}
+                                                className="w-full pl-9 pr-2 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                                                aria-label="Tanggal akhir"
+                                            />
+                                            <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-xs" />
                                         </div>
                                     </div>
-                                </div>
-                                <div className="sm:col-span-1">
-                                    <div className="relative w-full">
-                                        <input
-                                            type="date"
-                                            value={startDate}
-                                            onChange={(e) => {
-                                                setStartDate(e.target.value);
-                                                setCurrentPage(1);
-                                            }}
-                                            className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
-                                            aria-label="Tanggal mulai"
-                                        />
-                                        <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    </div>
-                                </div>
-                                <div className="sm:col-span-1">
-                                    <div className="relative w-full">
-                                        <input
-                                            type="date"
-                                            value={endDate}
-                                            onChange={(e) => {
-                                                setEndDate(e.target.value);
-                                                setCurrentPage(1);
-                                            }}
-                                            className="w-full pl-10 pr-3 py-3 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-white focus:border-blue-500 dark:focus:border-blue-500 focus:outline-none transition-colors duration-200"
-                                            aria-label="Tanggal akhir"
-                                        />
-                                        <FaCalendarAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    </div>
-                                </div>
-                                <div className="sm:col-span-1">
-                                    <div className="flex items-center sm:col-span-1 justify-center bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 shadow-sm">
-                                        <span className="text-sm font-medium text-gray-600 dark:text-gray-300">
+
+                                    {/* Pemilih Jumlah Baris */}
+                                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-3 py-1.5 shadow-sm w-full md:w-auto justify-center md:justify-start">
+                                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">
                                             Tampilkan
                                         </span>
-                                        <div className="ml-3">
-                                            <Listbox
-                                                value={itemsPerPage}
-                                                onChange={(val) =>
-                                                    handleItemsPerPageChange(
-                                                        val
-                                                    )
-                                                }
-                                                aria-label="Tampilkan per halaman"
-                                            >
-                                                <div className="relative">
-                                                    <Listbox.Button className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-md text-sm font-medium px-3 py-1.5 border-0 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600">
-                                                        {itemsPerPage}{" "}
-                                                        baris/halaman
-                                                    </Listbox.Button>
-                                                    <Transition
-                                                        as={React.Fragment}
-                                                        enter="transition ease-out duration-100"
-                                                        enterFrom="opacity-0 scale-95"
-                                                        enterTo="opacity-100 scale-100"
-                                                        leave="transition ease-in duration-100"
-                                                        leaveFrom="opacity-100"
-                                                        leaveTo="opacity-0"
-                                                    >
-                                                        <Listbox.Options className="absolute top-full left-0 z-[9999] mt-1 w-44 overflow-auto rounded-md bg-white dark:bg-gray-800 py-1 text-sm shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                                                            {[8, 16].map(
-                                                                (opt) => (
-                                                                    <Listbox.Option
-                                                                        key={
-                                                                            opt
-                                                                        }
-                                                                        value={
-                                                                            opt
-                                                                        }
-                                                                        className={({
-                                                                            active,
-                                                                        }) =>
-                                                                            `${
-                                                                                active
-                                                                                    ? "bg-blue-50 dark:bg-blue-900/30"
-                                                                                    : ""
-                                                                            } cursor-pointer select-none relative text-center py-2 pl-3 pr-3 text-gray-800 dark:text-gray-200`
-                                                                        }
-                                                                    >
-                                                                        {opt}{" "}
-                                                                        baris/halaman
-                                                                    </Listbox.Option>
-                                                                )
-                                                            )}
-                                                        </Listbox.Options>
-                                                    </Transition>
-                                                </div>
-                                            </Listbox>
-                                        </div>
+                                        <Listbox
+                                            value={itemsPerPage}
+                                            onChange={handleItemsPerPageChange}
+                                        >
+                                            <div className="relative">
+                                                <Listbox.Button className="bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold px-3 py-1.5 border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                    {itemsPerPage}
+                                                </Listbox.Button>
+                                                <Transition
+                                                    as={React.Fragment}
+                                                    enter="transition ease-out duration-100"
+                                                    enterFrom="opacity-0 scale-95"
+                                                    enterTo="opacity-100 scale-100"
+                                                    leave="transition ease-in duration-100"
+                                                    leaveFrom="opacity-100"
+                                                    leaveTo="opacity-0"
+                                                >
+                                                    <Listbox.Options className="absolute top-full left-0 z-[9999] mt-2 w-20 overflow-auto rounded-xl bg-white dark:bg-gray-800 py-1 text-xs shadow-xl ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-100 dark:border-gray-700 text-center">
+                                                        {[8, 16, 32, 50].map(
+                                                            (opt) => (
+                                                                <Listbox.Option
+                                                                    key={opt}
+                                                                    value={opt}
+                                                                    className={({
+                                                                        active,
+                                                                    }) =>
+                                                                        `${
+                                                                            active
+                                                                                ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400"
+                                                                                : "text-gray-700 dark:text-gray-300"
+                                                                        } cursor-pointer select-none relative text-center py-2 font-bold`
+                                                                    }
+                                                                >
+                                                                    {opt}
+                                                                </Listbox.Option>
+                                                            ),
+                                                        )}
+                                                    </Listbox.Options>
+                                                </Transition>
+                                            </div>
+                                        </Listbox>
                                     </div>
                                 </div>
-                                <div className="sm:col-span-2">
-                                    <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
-                                        {/* Button Tambah Data */}
-                                        <Link href={route("trips.add")}>
-                                            <button className="flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md w-full sm:w-auto">
-                                                <FaCar className="text-lg" />
-                                                <span>Trip Baru</span>
-                                            </button>
-                                        </Link>
 
-                                        {/* Dropdown Export */}
-                                        {auth.user.role === "admin" && (
-                                            <button
-                                                onClick={() =>
-                                                    setShowExportModal(true)
-                                                }
-                                                className="flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white px-6 py-2.5 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md w-full sm:w-auto"
+                                {/* Bagian Kanan: Tombol Aksi */}
+                                <div className="flex items-center gap-3 w-full xl:w-auto">
+                                    <Link
+                                        href={route("trips.add")}
+                                        className="flex-1 xl:flex-none"
+                                    >
+                                        <button className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-bold text-sm shadow-md hover:shadow-lg active:scale-95 transform">
+                                            <FaPlus className="text-xs" />
+                                            <span>Trip Baru</span>
+                                        </button>
+                                    </Link>
+
+                                    {auth.user.role === "admin" && (
+                                        <Menu
+                                            as="div"
+                                            className="relative inline-block text-left flex-1 xl:flex-none"
+                                        >
+                                            <Menu.Button className="w-full flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl transition-all duration-200 font-bold text-sm shadow-md hover:shadow-lg active:scale-95 transform">
+                                                <FaFileExcel className="text-sm" />
+                                                <span>Export</span>
+                                                <FaChevronDown className="text-[10px] ml-1 opacity-70" />
+                                            </Menu.Button>
+
+                                            <Transition
+                                                as={React.Fragment}
+                                                enter="transition ease-out duration-100"
+                                                enterFrom="transform opacity-0 scale-95"
+                                                enterTo="transform opacity-100 scale-100"
+                                                leave="transition ease-in duration-75"
+                                                leaveFrom="transform opacity-100 scale-100"
+                                                leaveTo="transform opacity-0 scale-95"
                                             >
-                                                <FaFileExcel className="text-lg" />
-                                                <span>Export Excel</span>
-                                            </button>
-                                        )}
-                                    </div>
+                                                <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-gray-100 dark:divide-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-2xl ring-1 ring-black ring-opacity-5 focus:outline-none z-[100] border border-gray-100 dark:border-gray-700 overflow-hidden">
+                                                    <div className="py-1">
+                                                        <Menu.Item>
+                                                            {({ active }) => (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setExportTarget(
+                                                                            "trip",
+                                                                        );
+                                                                        setExportType(
+                                                                            "month",
+                                                                        );
+                                                                        setShowExportModal(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                    className={`${
+                                                                        active
+                                                                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                                                                            : "text-gray-700 dark:text-gray-300"
+                                                                    } group flex w-full items-center px-4 py-3 text-sm font-bold transition-colors`}
+                                                                >
+                                                                    <FaFileExcel className="mr-3 text-base text-emerald-500" />
+                                                                    Export Excel
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
+                                                        <Menu.Item>
+                                                            {({ active }) => (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setExportTarget(
+                                                                            "bbm",
+                                                                        );
+                                                                        setExportType(
+                                                                            "month",
+                                                                        );
+                                                                        setShowExportModal(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                    className={`${
+                                                                        active
+                                                                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+                                                                            : "text-gray-700 dark:text-gray-300"
+                                                                    } group flex w-full items-center px-4 py-3 text-sm font-bold transition-colors`}
+                                                                >
+                                                                    <FaGasPump className="mr-3 text-base text-orange-500" />
+                                                                    Export BBM
+                                                                </button>
+                                                            )}
+                                                        </Menu.Item>
+                                                    </div>
+                                                </Menu.Items>
+                                            </Transition>
+                                        </Menu>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1010,7 +1232,7 @@ export default function Trip({
                                                             <span>
                                                                 {dateFormat(
                                                                     item.waktu_keberangkatan,
-                                                                    "dd mmmm yyyy, HH:MM"
+                                                                    "dd mmmm yyyy, HH:MM",
                                                                 ) || "-"}
                                                             </span>
                                                         </div>
@@ -1035,7 +1257,7 @@ export default function Trip({
                                                                             <FaCalendarCheck className="text-green-500 dark:text-green-400 mr-2 flex-shrink-0" />
                                                                             {dateFormat(
                                                                                 item.waktu_kembali,
-                                                                                "dd mmmm yyyy, HH:MM"
+                                                                                "dd mmmm yyyy, HH:MM",
                                                                             )}
                                                                         </div>
                                                                     </>
@@ -1062,7 +1284,7 @@ export default function Trip({
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                                         {new Intl.NumberFormat(
-                                                            "id-ID"
+                                                            "id-ID",
                                                         ).format(item.km_awal)}
                                                         {" KM"}
                                                     </td>
@@ -1073,9 +1295,9 @@ export default function Trip({
                                                             undefined
                                                             ? "-"
                                                             : new Intl.NumberFormat(
-                                                                  "id-ID"
+                                                                  "id-ID",
                                                               ).format(
-                                                                  item.km_akhir
+                                                                  item.km_akhir,
                                                               ) + " KM"}
                                                     </td>
                                                     <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
@@ -1110,7 +1332,7 @@ export default function Trip({
                                                             <button
                                                                 onClick={() =>
                                                                     toggleDropdown(
-                                                                        item.id
+                                                                        item.id,
                                                                     )
                                                                 }
                                                                 type="button"
@@ -1145,11 +1367,11 @@ export default function Trip({
                                                                                     router.visit(
                                                                                         route(
                                                                                             "trips.close.form",
-                                                                                            item.code_trip
-                                                                                        )
+                                                                                            item.code_trip,
+                                                                                        ),
                                                                                     );
                                                                                     setOpenDropdown(
-                                                                                        null
+                                                                                        null,
                                                                                     );
                                                                                 }}
                                                                                 type="button"
@@ -1176,11 +1398,11 @@ export default function Trip({
                                                                                 router.visit(
                                                                                     route(
                                                                                         "trips.show",
-                                                                                        item.code_trip
-                                                                                    )
+                                                                                        item.code_trip,
+                                                                                    ),
                                                                                 );
                                                                                 setOpenDropdown(
-                                                                                    null
+                                                                                    null,
                                                                                 );
                                                                             }}
                                                                             type="button"
@@ -1203,96 +1425,91 @@ export default function Trip({
                                     </table>
                                 </div>
                             )}
+                        </div>
 
-                            {/* Di dalam tabel, sebelum pagination controls */}
-                            <div className="flex flex-col sm:flex-row justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1f2937] sticky bottom-0 left-0 right-0 shadow-md overflow-visible">
-                                {/* Info showing entries - Responsive text size */}
-                                <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-center sm:text-left mb-4 sm:mb-0">
-                                    Showing{" "}
-                                    <span className="font-medium mx-1">
-                                        {indexOfFirstItem + 1}
-                                    </span>
-                                    to{" "}
-                                    <span className="font-medium mx-1">
-                                        {Math.min(
-                                            indexOfLastItem,
-                                            filteredTrips.length
-                                        )}
-                                    </span>
-                                    of{" "}
-                                    <span className="font-medium mx-1">
-                                        {filteredTrips.length}
-                                    </span>{" "}
-                                    entries
+                        {/* Di dalam tabel, sebelum pagination controls */}
+                        <div className="flex flex-col sm:flex-row justify-between items-center p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-[#1f2937] sticky bottom-0 left-0 right-0 shadow-md overflow-visible">
+                            {/* Info showing entries - Responsive text size */}
+                            <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-center sm:text-left mb-4 sm:mb-0">
+                                Showing{" "}
+                                <span className="font-medium mx-1">
+                                    {indexOfFirstItem + 1}
+                                </span>
+                                to{" "}
+                                <span className="font-medium mx-1">
+                                    {Math.min(
+                                        indexOfLastItem,
+                                        filteredTrips.length,
+                                    )}
+                                </span>
+                                of{" "}
+                                <span className="font-medium mx-1">
+                                    {filteredTrips.length}
+                                </span>{" "}
+                                entries
+                            </div>
+
+                            {/* Items per page selector - Centered on desktop */}
+
+                            <div className="flex items-center space-x-4">
+                                {/* Previous Button - Responsive sizing */}
+                                <button
+                                    onClick={() => paginate(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className={`flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-md ${
+                                        currentPage === 1
+                                            ? "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
+                                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    } transition-colors duration-200`}
+                                >
+                                    <FaChevronLeft className="w-3 sm:w-4 h-3 sm:h-4" />
+                                </button>
+
+                                {/* Page Numbers - Desktop View */}
+                                <div className="hidden sm:flex items-center mx-2">
+                                    {getPaginationNumbers().map(
+                                        (page, index) => (
+                                            <React.Fragment key={index}>
+                                                {page === "..." ? (
+                                                    <span className="flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10">
+                                                        <FaEllipsisH className="w-3 sm:w-4 h-3 sm:h-4 text-gray-400" />
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() =>
+                                                            paginate(page)
+                                                        }
+                                                        className={`flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-full mx-1 ${
+                                                            currentPage === page
+                                                                ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md"
+                                                                : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                                        } transition-all duration-200`}
+                                                    >
+                                                        {page}
+                                                    </button>
+                                                )}
+                                            </React.Fragment>
+                                        ),
+                                    )}
                                 </div>
 
-                                {/* Items per page selector - Centered on desktop */}
+                                {/* Mobile Pagination Info */}
+                                <span className="mx-3 sm:hidden text-xs font-medium text-gray-600 dark:text-gray-300">
+                                    {currentPage} / {totalPages}
+                                </span>
 
-                                <div className="flex items-center space-x-4">
-                                    {/* Previous Button - Responsive sizing */}
-                                    <button
-                                        onClick={() =>
-                                            paginate(currentPage - 1)
-                                        }
-                                        disabled={currentPage === 1}
-                                        className={`flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-md ${
-                                            currentPage === 1
-                                                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
-                                                : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                        } transition-colors duration-200`}
-                                    >
-                                        <FaChevronLeft className="w-3 sm:w-4 h-3 sm:h-4" />
-                                    </button>
-
-                                    {/* Page Numbers - Desktop View */}
-                                    <div className="hidden sm:flex items-center mx-2">
-                                        {getPaginationNumbers().map(
-                                            (page, index) => (
-                                                <React.Fragment key={index}>
-                                                    {page === "..." ? (
-                                                        <span className="flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10">
-                                                            <FaEllipsisH className="w-3 sm:w-4 h-3 sm:h-4 text-gray-400" />
-                                                        </span>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() =>
-                                                                paginate(page)
-                                                            }
-                                                            className={`flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-full mx-1 ${
-                                                                currentPage ===
-                                                                page
-                                                                    ? "bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md"
-                                                                    : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                                            } transition-all duration-200`}
-                                                        >
-                                                            {page}
-                                                        </button>
-                                                    )}
-                                                </React.Fragment>
-                                            )
-                                        )}
-                                    </div>
-
-                                    {/* Mobile Pagination Info */}
-                                    <span className="mx-3 sm:hidden text-xs font-medium text-gray-600 dark:text-gray-300">
-                                        {currentPage} / {totalPages}
-                                    </span>
-
-                                    {/* Next Button - Responsive sizing */}
-                                    <button
-                                        onClick={() =>
-                                            paginate(currentPage + 1)
-                                        }
-                                        disabled={currentPage === totalPages}
-                                        className={`flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-md ${
-                                            currentPage === totalPages
-                                                ? "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
-                                                : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                                        } transition-colors duration-200`}
-                                    >
-                                        <FaChevronRight className="w-3 sm:w-4 h-3 sm:h-4" />
-                                    </button>
-                                </div>
+                                {/* Next Button - Responsive sizing */}
+                                <button
+                                    onClick={() => paginate(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className={`flex items-center justify-center w-8 sm:w-10 h-8 sm:h-10 rounded-md ${
+                                        currentPage === totalPages
+                                            ? "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
+                                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                    } transition-colors duration-200`}
+                                >
+                                    <FaChevronRight className="w-3 sm:w-4 h-3 sm:h-4" />
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1302,7 +1519,11 @@ export default function Trip({
             <Modal
                 isOpen={showExportModal}
                 onClose={() => setShowExportModal(false)}
-                title="Export Data ke Excel"
+                title={
+                    exportTarget === "trip"
+                        ? "Export Data Trip ke Excel"
+                        : "Export Laporan BBM ke Excel"
+                }
             >
                 <div className="p-4">
                     <div className="mb-6">
@@ -1438,8 +1659,11 @@ export default function Trip({
                                                                 }`}
                                                             >
                                                                 Export seluruh
-                                                                data kendaraan
-                                                                tamu
+                                                                data{" "}
+                                                                {exportTarget ===
+                                                                "trip"
+                                                                    ? "trip kendaraan"
+                                                                    : "penggunaan BBM"}
                                                             </RadioGroup.Description>
                                                         </div>
                                                     </div>
@@ -1486,14 +1710,14 @@ export default function Trip({
                                         <input
                                             type="month"
                                             value={`${exportDate.getFullYear()}-${String(
-                                                exportDate.getMonth() + 1
+                                                exportDate.getMonth() + 1,
                                             ).padStart(2, "0")}`}
                                             onChange={(e) => {
                                                 const [year, month] =
                                                     e.target.value.split("-");
                                                 const newDate = new Date(
                                                     year,
-                                                    month - 1
+                                                    month - 1,
                                                 );
                                                 setExportDate(newDate);
                                             }}
@@ -1530,8 +1754,11 @@ export default function Trip({
                                                 Export Semua Data
                                             </h3>
                                             <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                                                Semua data kendaraan tamu akan
-                                                diexport ke file Excel
+                                                Semua data{" "}
+                                                {exportTarget === "trip"
+                                                    ? "kendaraan"
+                                                    : "BBM"}{" "}
+                                                akan diexport ke file Excel
                                             </p>
                                         </div>
                                     </div>
@@ -1550,7 +1777,11 @@ export default function Trip({
                         </button>
                         <button
                             type="button"
-                            onClick={exportToExcel}
+                            onClick={
+                                exportTarget === "trip"
+                                    ? exportToExcel
+                                    : exportBBMToExcel
+                            }
                             className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg transition-colors flex items-center space-x-2 shadow-sm hover:shadow-md"
                         >
                             <FaFileExcel className="w-4 h-4" />

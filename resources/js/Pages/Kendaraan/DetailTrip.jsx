@@ -51,7 +51,8 @@ const BbmInfoSection = ({ trip, auth }) => {
                 "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
             Dexlite:
                 "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
-            Solar: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
+            "Pertamina Dex":
+                "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300",
         };
         return (
             colors[jenisBbm] ||
@@ -81,7 +82,7 @@ const BbmInfoSection = ({ trip, auth }) => {
                         </p>
                         <span
                             className={`inline-block px-2 py-0.5 rounded-full text-sm font-medium ${getBbmStatusColor(
-                                trip.jenis_bbm
+                                trip.jenis_bbm,
                             )}`}
                         >
                             {trip.jenis_bbm || "-"}
@@ -240,7 +241,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
             color: "bg-indigo-500",
         },
         { id: "dexlite", name: "Dexlite", color: "bg-yellow-500" },
-        { id: "solar", name: "Solar", color: "bg-red-500" },
+        { id: "pertamina_dex", name: "Pertamina Dex", color: "bg-red-500" },
     ];
 
     // Format tanggal untuk tampilan yang lebih baik
@@ -393,7 +394,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                         theme: "colored",
                     });
                 },
-            }
+            },
         );
     };
 
@@ -412,7 +413,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                     setShowEditModal(false); // Tutup modal
                     try {
                         localStorage.removeItem(
-                            `trip:${trip.code_trip}:editDraft`
+                            `trip:${trip.code_trip}:editDraft`,
                         );
                     } catch {}
 
@@ -423,7 +424,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                             position: "top-right",
                             autoClose: 5000,
                             theme: "colored",
-                        }
+                        },
                     );
                 },
                 onError: (errors) => {
@@ -436,10 +437,10 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                             position: "top-right",
                             autoClose: 5000,
                             theme: "colored",
-                        }
+                        },
                     );
                 },
-            }
+            },
         );
     };
     // << Selesai: Fungsi untuk memproses pengajuan edit trip
@@ -484,7 +485,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                                 onError={(e) => {
                                     console.error(
-                                        `Error loading image: ${photo}`
+                                        `Error loading image: ${photo}`,
                                     );
                                     e.target.src =
                                         "/path/to/fallback-image.jpg";
@@ -508,7 +509,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             `/storage/${photo}`,
                                             `${trip.code_trip}-${title}-${
                                                 index + 1
-                                            }.jpg`
+                                            }.jpg`,
                                         )
                                     }
                                     className="text-white text-xs flex items-center hover:text-green-300 transition-colors focus:outline-none focus:ring-2 focus:ring-green-400 rounded"
@@ -729,7 +730,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                     <p className="text-lg font-semibold text-gray-900 dark:text-white">
                                         {String(trip.km_awal).replace(
                                             /\B(?=(\d{3})+(?!\d))/g,
-                                            "."
+                                            ".",
                                         )}
                                         <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
                                             km
@@ -746,7 +747,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                     <p className="text-lg font-semibold text-gray-900 dark:text-white">
                                         {String(trip.km_akhir).replace(
                                             /\B(?=(\d{3})+(?!\d))/g,
-                                            "."
+                                            ".",
                                         )}
                                         <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
                                             km
@@ -763,7 +764,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                     <p className="text-lg font-semibold text-gray-900 dark:text-white">
                                         {String(trip.jarak).replace(
                                             /\B(?=(\d{3})+(?!\d))/g,
-                                            "."
+                                            ".",
                                         )}
                                         <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
                                             km
@@ -782,7 +783,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                     {/* Foto Berangkat */}
                     {renderPhotoSection(
                         trip.foto_berangkat,
-                        "Foto Keberangkatan"
+                        "Foto Keberangkatan",
                     )}
 
                     {/* Foto Kembali */}
@@ -805,7 +806,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             e.stopPropagation();
                                             downloadImage(
                                                 selectedImage,
-                                                `foto-trip-${trip.code_trip}.jpg`
+                                                `foto-trip-${trip.code_trip}.jpg`,
                                             );
                                         }}
                                         aria-label="Unduh foto"
@@ -908,7 +909,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                 key={option.id}
                                                 onClick={() =>
                                                     handleJenisBBMChange(
-                                                        option.name
+                                                        option.name,
                                                     )
                                                 }
                                                 className={`relative flex items-center p-3 rounded-lg cursor-pointer border transition-all duration-200 ${
@@ -939,7 +940,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                                 option.name
                                                                     ? option.color.replace(
                                                                           "bg-",
-                                                                          "text-"
+                                                                          "text-",
                                                                       )
                                                                     : "text-gray-400"
                                                             }`}
@@ -997,7 +998,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             value={
                                                 bbmData.harga_per_liter
                                                     ? formatCurrency(
-                                                          bbmData.harga_per_liter
+                                                          bbmData.harga_per_liter,
                                                       )
                                                     : ""
                                             }
@@ -1023,9 +1024,9 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             value={
                                                 bbmData.total_harga
                                                     ? `Rp ${parseInt(
-                                                          bbmData.total_harga
+                                                          bbmData.total_harga,
                                                       ).toLocaleString(
-                                                          "id-ID"
+                                                          "id-ID",
                                                       )}`
                                                     : ""
                                             }
@@ -1103,8 +1104,8 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                     (k) =>
                                                         String(k.id) ===
                                                         String(
-                                                            editData.kendaraan_id
-                                                        )
+                                                            editData.kendaraan_id,
+                                                        ),
                                                 ) || null
                                             }
                                             onChange={(k) =>
@@ -1149,7 +1150,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                                 >
                                                                     {`${k.plat_kendaraan} - ${k.merek}`}
                                                                 </Combobox.Option>
-                                                            )
+                                                            ),
                                                         )}
                                                     </Combobox.Options>
                                                 </Transition>
@@ -1168,8 +1169,8 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                     (d) =>
                                                         String(d.id) ===
                                                         String(
-                                                            editData.driver_id
-                                                        )
+                                                            editData.driver_id,
+                                                        ),
                                                 ) || null
                                             }
                                             onChange={(d) =>
@@ -1266,7 +1267,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                     className="block w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500"
                                                     onChange={(e) =>
                                                         setDestinationQuery(
-                                                            e.target.value
+                                                            e.target.value,
                                                         )
                                                     }
                                                     displayValue={(v) =>
@@ -1289,8 +1290,8 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                                       o
                                                                           .toLowerCase()
                                                                           .includes(
-                                                                              destinationQuery.toLowerCase()
-                                                                          )
+                                                                              destinationQuery.toLowerCase(),
+                                                                          ),
                                                               )
                                                         ).map((opt) => (
                                                             <Combobox.Option

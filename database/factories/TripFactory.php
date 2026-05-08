@@ -36,10 +36,16 @@ class TripFactory extends Factory
                 return $attributes['km_akhir'] - $attributes['km_awal'];
             },
             'tujuan' => fake()->city(),
-            'status' => fake()->randomElement(['Sedang Berjalan', 'Selesai']),
+            'status' => 'Selesai',
             'catatan' => fake()->optional()->text(200),
             'foto_berangkat' => "",
-            'penumpang' => fake()->name()
+            'penumpang' => fake()->name(),
+            'jenis_bbm' => fake()->randomElement(['Pertalite', 'Pertamax', 'Pertamina Dex', 'Dexlite']),
+            'jumlah_liter' => fake()->randomFloat(2, 5, 60),
+            'harga_per_liter' => fake()->randomElement([10000, 12950, 13700, 14500]),
+            'total_harga_bbm' => function (array $attributes) {
+                return $attributes['jumlah_liter'] * $attributes['harga_per_liter'];
+            },
         ];
     }
 }
