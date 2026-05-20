@@ -1,8 +1,8 @@
 <?php
 
 namespace App\Models;
+use App\Models\BbmEditLog;
 use App\Models\User;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -34,6 +34,8 @@ class Trip extends Model
         'jumlah_liter',
         'harga_per_liter',
         'total_harga_bbm',
+        'tanggal_pembelian_bbm',
+        'keterangan_bbm',
         'lokasi'
     ];
 
@@ -56,5 +58,10 @@ class Trip extends Model
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function bbmLogs()
+    {
+        return $this->hasMany(BbmEditLog::class)->orderBy('created_at', 'desc');
     }
 }

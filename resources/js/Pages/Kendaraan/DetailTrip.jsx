@@ -19,16 +19,28 @@ import {
     FaReceipt,
     FaCalendarDay,
     FaSpinner,
-    FaGasPump as FaGasStation,
     FaCheck,
     FaInfo,
+    FaClock,
+    FaEdit,
+    FaHistory,
+    FaCheckCircle,
+    FaArrowRight,
 } from "react-icons/fa";
 import { ToastContainer, toast, Flip } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { Dialog, Transition, Combobox, RadioGroup } from "@headlessui/react";
+import {
+    Dialog,
+    DialogPanel,
+    DialogTitle,
+    DialogBackdrop,
+    Transition,
+    Combobox,
+    RadioGroup,
+} from "@headlessui/react";
 
 // Tambahkan section untuk informasi BBM
-const BbmInfoSection = ({ trip, auth }) => {
+const BbmInfoSection = ({ trip, auth, onEditClick, onHistoryClick }) => {
     if (auth.user.role !== "admin") return null;
 
     // Jika tidak ada data BBM, return null
@@ -48,7 +60,7 @@ const BbmInfoSection = ({ trip, auth }) => {
             Pertamax:
                 "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
             "Pertamax Turbo":
-                "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300",
+                "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-blue-300",
             Dexlite:
                 "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300",
             "Pertamina Dex":
@@ -68,13 +80,26 @@ const BbmInfoSection = ({ trip, auth }) => {
                         <FaGasPump className="mr-2 text-blue-500" />
                         Informasi BBM
                     </h2>
-                    <div className="flex items-center text-sm text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-md">
-                        <FaInfo className="h-3.5 w-3.5 mr-1.5 text-blue-400" />
-                        Hanya untuk admin
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={onHistoryClick}
+                            className="flex items-center text-sm text-gray-600 dark:text-gray-400 hover:text-blue-600 bg-gray-100 dark:bg-gray-700 px-3 py-1.5 rounded-md transition-colors"
+                            title="Riwayat Perubahan"
+                        >
+                            <FaClock className="h-3.5 w-3.5 mr-1.5" />
+                            Riwayat
+                        </button>
+                        <button
+                            onClick={onEditClick}
+                            className="flex items-center text-sm text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-md transition-colors shadow-sm"
+                        >
+                            <FaEdit className="h-3.5 w-3.5 mr-1.5" />
+                            Edit BBM
+                        </button>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
                     {/* Jenis BBM */}
                     <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
@@ -133,6 +158,33 @@ const BbmInfoSection = ({ trip, auth }) => {
                         </p>
                     </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Tanggal Pembelian */}
+                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center">
+                            <FaCalendarAlt className="mr-1.5 h-3 w-3" /> Tanggal
+                            Pembelian
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white">
+                            {trip.tanggal_pembelian_bbm
+                                ? dateFormat(
+                                      new Date(trip.tanggal_pembelian_bbm),
+                                      "dd mmmm yyyy, HH:MM",
+                                  )
+                                : "-"}
+                        </p>
+                    </div>
+                    {/* Keterangan */}
+                    <div className="bg-gray-50 dark:bg-gray-700 p-3 rounded-md">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center">
+                            <FaInfo className="mr-1.5 h-3 w-3" /> Keterangan
+                        </p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-white italic">
+                            {trip.keterangan_bbm || "Tidak ada keterangan"}
+                        </p>
+                    </div>
+                </div>
             </div>
         </>
     );
@@ -162,6 +214,8 @@ const formatDateTimeForInput = (dateTimeString) => {
 export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
     const [selectedImage, setSelectedImage] = useState(null);
     const [showBbmModal, setShowBbmModal] = useState(false);
+    const [showEditBbmModal, setShowEditBbmModal] = useState(false); // Modal Edit BBM
+    const [showBbmHistoryModal, setShowBbmHistoryModal] = useState(false); // Modal Riwayat BBM
     const [showEditModal, setShowEditModal] = useState(false); // Kontrol modal edit
     const [editData, setEditData] = useState({
         // Data yang diisi di form edit
@@ -180,10 +234,15 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDarkMode, setIsDarkMode] = useState(false);
     const [bbmData, setBbmData] = useState({
-        jumlah_liter: "",
-        harga_per_liter: "",
-        total_harga: "",
-        jenis_bbm: "Pertalite", // Default jenis BBM
+        jumlah_liter: trip.jumlah_liter || "",
+        harga_per_liter: trip.harga_per_liter || "",
+        total_harga: trip.total_harga_bbm || "",
+        jenis_bbm: trip.jenis_bbm || "Pertalite",
+        tanggal_pembelian_bbm: trip.tanggal_pembelian_bbm
+            ? formatDateTimeForInput(trip.tanggal_pembelian_bbm)
+            : "",
+        keterangan_bbm: trip.keterangan_bbm || "",
+        reason: "", // Alasan edit
     });
     const [validationErrors, setValidationErrors] = useState({});
     const [destinationQuery, setDestinationQuery] = useState("");
@@ -347,6 +406,14 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
     // Modifikasi handleBbmSubmit
     const handleBbmSubmit = (e) => {
         e.preventDefault();
+
+        // Konfirmasi sebelum menyimpan (Requirement 4)
+        if (
+            !window.confirm("Apakah Anda yakin ingin menyimpan data BBM ini?")
+        ) {
+            return;
+        }
+
         setIsSubmitting(true);
 
         router.post(
@@ -356,20 +423,27 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                 jumlah_liter: parseFloat(bbmData.jumlah_liter),
                 harga_per_liter: parseFloat(bbmData.harga_per_liter),
                 total_harga: parseFloat(bbmData.total_harga),
+                tanggal_pembelian_bbm: bbmData.tanggal_pembelian_bbm,
+                keterangan_bbm: bbmData.keterangan_bbm,
+                reason: bbmData.reason,
             },
             {
                 onSuccess: () => {
                     setIsSubmitting(false);
                     setShowBbmModal(false);
+                    setShowEditBbmModal(false);
                     setBbmData({
                         jumlah_liter: "",
                         harga_per_liter: "",
                         total_harga: "",
                         jenis_bbm: "Pertalite",
+                        tanggal_pembelian_bbm: "",
+                        keterangan_bbm: "",
+                        reason: "",
                     });
 
                     // Tampilkan toast sukses
-                    toast.success("Data BBM berhasil disimpan!", {
+                    toast.success("Data BBM berhasil diperbarui!", {
                         position: "top-right",
                         autoClose: 3000,
                         hideProgressBar: false,
@@ -382,8 +456,9 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
+                    setValidationErrors(errors);
                     // Tampilkan toast error
-                    toast.error("Gagal menyimpan data BBM!", {
+                    toast.error("Gagal memperbarui data BBM!", {
                         position: "top-right",
                         autoClose: 3000,
                         hideProgressBar: false,
@@ -602,16 +677,20 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                 <FaSave className="mr-2" /> Edit Trip
                             </button>
 
-                            {/* Tombol Tambah BBM (Hanya untuk Admin) */}
-                            {auth.user.role === "admin" && (
-                                <button
-                                    className="text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 px-4 py-2 rounded-md transition duration-300 shadow-sm flex items-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                    onClick={() => setShowBbmModal(true)}
-                                    aria-label="Tambah data BBM"
-                                >
-                                    <FaGasPump className="mr-2" /> Tambah BBM
-                                </button>
-                            )}
+                            {/* Tombol Tambah BBM (Hanya untuk Admin & Jika belum ada data BBM) */}
+                            {auth.user.role === "admin" &&
+                                !trip.jenis_bbm &&
+                                !trip.jumlah_liter &&
+                                !trip.harga_per_liter && (
+                                    <button
+                                        className="text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 px-4 py-2 rounded-md transition duration-300 shadow-sm flex items-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                        onClick={() => setShowBbmModal(true)}
+                                        aria-label="Tambah data BBM"
+                                    >
+                                        <FaGasPump className="mr-2" /> Tambah
+                                        BBM
+                                    </button>
+                                )}
                         </div>
                     </div>
 
@@ -777,7 +856,28 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
 
                     {/* Tambahkan BbmInfoSection setelah Informasi Kilometer */}
                     {auth.user.role === "admin" && (
-                        <BbmInfoSection trip={trip} auth={auth} />
+                        <BbmInfoSection
+                            trip={trip}
+                            auth={auth}
+                            onEditClick={() => {
+                                setBbmData({
+                                    jumlah_liter: trip.jumlah_liter || "",
+                                    harga_per_liter: trip.harga_per_liter || "",
+                                    total_harga: trip.total_harga_bbm || "",
+                                    jenis_bbm: trip.jenis_bbm || "Pertalite",
+                                    tanggal_pembelian_bbm:
+                                        trip.tanggal_pembelian_bbm
+                                            ? formatDateTimeForInput(
+                                                  trip.tanggal_pembelian_bbm,
+                                              )
+                                            : "",
+                                    keterangan_bbm: trip.keterangan_bbm || "",
+                                    reason: "",
+                                });
+                                setShowEditBbmModal(true);
+                            }}
+                            onHistoryClick={() => setShowBbmHistoryModal(true)}
+                        />
                     )}
 
                     {/* Foto Berangkat */}
@@ -860,27 +960,34 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                         </div>
                     )}
 
-                    {/* Modal BBM di samping kanan */}
+                    {/* Modal BBM di samping kanan (TAMBAH / EDIT) */}
                     <div
                         className={`fixed top-0 right-0 h-full w-full md:w-96 bg-white dark:bg-gray-800 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
-                            showBbmModal ? "translate-x-0" : "translate-x-full"
+                            showBbmModal || showEditBbmModal
+                                ? "translate-x-0"
+                                : "translate-x-full"
                         } overflow-y-auto`}
                     >
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-6">
                                 <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center">
                                     <FaGasPump className="mr-2 text-blue-500" />{" "}
-                                    Tambah Data BBM
+                                    {showEditBbmModal
+                                        ? "Edit Data BBM"
+                                        : "Tambah Data BBM"}
                                 </h2>
                                 <button
-                                    onClick={() => setShowBbmModal(false)}
+                                    onClick={() => {
+                                        setShowBbmModal(false);
+                                        setShowEditBbmModal(false);
+                                    }}
                                     className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                                 >
                                     <FaTimes className="h-5 w-5 text-gray-700 dark:text-gray-300" />
                                 </button>
                             </div>
 
-                            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800">
                                 <p className="text-sm text-blue-800 dark:text-blue-300 flex items-start">
                                     <span className="bg-blue-100 dark:bg-blue-800 p-1 rounded-full mr-2 flex-shrink-0">
                                         <FaCar className="h-3 w-3 text-blue-500" />
@@ -934,7 +1041,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                         )}
                                                     </div>
                                                     <div className="ml-2 flex items-center">
-                                                        <FaGasStation
+                                                        <FaGasPump
                                                             className={`mr-1.5 ${
                                                                 bbmData.jenis_bbm ===
                                                                 option.name
@@ -982,6 +1089,11 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             min={0}
                                         />
                                     </div>
+                                    {validationErrors.jumlah_liter && (
+                                        <p className="mt-1 text-xs text-red-500">
+                                            {validationErrors.jumlah_liter}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1008,6 +1120,11 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                             required
                                         />
                                     </div>
+                                    {validationErrors.harga_per_liter && (
+                                        <p className="mt-1 text-xs text-red-500">
+                                            {validationErrors.harga_per_liter}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -1030,7 +1147,7 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                                       )}`
                                                     : ""
                                             }
-                                            className="block w-full pl-10 pr-3 py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white bg-gray-100 dark:bg-gray-600 cursor-not-allowed transition-colors"
+                                            className="block w-full pl-10 pr-3 py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white bg-gray-100 dark:bg-gray-600 cursor-not-allowed transition-colors font-medium"
                                             placeholder="Otomatis dihitung"
                                             readOnly
                                         />
@@ -1040,11 +1157,88 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                     </p>
                                 </div>
 
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Tanggal Pembelian
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3">
+                                            <FaCalendarAlt className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                                        </div>
+                                        <input
+                                            type="datetime-local"
+                                            name="tanggal_pembelian_bbm"
+                                            value={
+                                                bbmData.tanggal_pembelian_bbm
+                                            }
+                                            onChange={(e) =>
+                                                setBbmData({
+                                                    ...bbmData,
+                                                    tanggal_pembelian_bbm:
+                                                        e.target.value,
+                                                })
+                                            }
+                                            className="block w-full pl-10 pr-3 py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors"
+                                        />
+                                    </div>
+                                    {validationErrors.tanggal_pembelian_bbm && (
+                                        <p className="mt-1 text-xs text-red-500">
+                                            {
+                                                validationErrors.tanggal_pembelian_bbm
+                                            }
+                                        </p>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Keterangan
+                                    </label>
+                                    <textarea
+                                        name="keterangan_bbm"
+                                        value={bbmData.keterangan_bbm}
+                                        onChange={(e) =>
+                                            setBbmData({
+                                                ...bbmData,
+                                                keterangan_bbm: e.target.value,
+                                            })
+                                        }
+                                        className="block w-full px-3 py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors"
+                                        rows="2"
+                                        placeholder="Catatan tambahan..."
+                                    ></textarea>
+                                </div>
+
+                                {showEditBbmModal && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            Alasan Perubahan{" "}
+                                            <span className="text-red-500">
+                                                *
+                                            </span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            name="reason"
+                                            value={bbmData.reason}
+                                            onChange={(e) =>
+                                                setBbmData({
+                                                    ...bbmData,
+                                                    reason: e.target.value,
+                                                })
+                                            }
+                                            className="block w-full px-3 py-2 rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:border-blue-500 focus:ring-blue-500 transition-colors"
+                                            placeholder="Contoh: Koreksi salah input harga"
+                                            required={showEditBbmModal}
+                                        />
+                                    </div>
+                                )}
+
                                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
                                     <button
                                         type="submit"
                                         disabled={isSubmitting}
-                                        className="w-full flex justify-center items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg disabled:opacity-50 transition-colors"
+                                        className="w-full flex justify-center items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white rounded-lg disabled:opacity-50 transition-all shadow-md active:scale-[0.98]"
                                     >
                                         {isSubmitting ? (
                                             <>
@@ -1054,7 +1248,11 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                                         ) : (
                                             <>
                                                 <FaSave className="mr-2 h-4 w-4" />
-                                                <span>Simpan Data BBM</span>
+                                                <span>
+                                                    {showEditBbmModal
+                                                        ? "Perbarui Data BBM"
+                                                        : "Simpan Data BBM"}
+                                                </span>
                                             </>
                                         )}
                                     </button>
@@ -1062,6 +1260,234 @@ export default function DetailTrip({ trip, auth, allVehicles, allDrivers }) {
                             </form>
                         </div>
                     </div>
+
+                    {/* Modal Riwayat BBM (Centered) */}
+                    <Transition show={showBbmHistoryModal} as={Fragment}>
+                        <Dialog
+                            as="div"
+                            className="fixed inset-0 z-50 overflow-y-auto"
+                            onClose={() => setShowBbmHistoryModal(false)}
+                        >
+                            <div className="min-h-screen px-4 text-center">
+                                <Transition.Child
+                                    as={Fragment}
+                                    enter="ease-out duration-300"
+                                    enterFrom="opacity-0"
+                                    enterTo="opacity-100"
+                                    leave="ease-in duration-200"
+                                    leaveFrom="opacity-100"
+                                    leaveTo="opacity-0"
+                                >
+                                    <DialogBackdrop className="fixed inset-0 bg-black bg-opacity-50 transition-opacity" />
+                                </Transition.Child>
+
+                                <span
+                                    className="inline-block h-screen align-middle"
+                                    aria-hidden="true"
+                                >
+                                    &#8203;
+                                </span>
+
+                                <Transition.Child
+                                    as={Fragment}
+                                    enter="ease-out duration-300"
+                                    enterFrom="opacity-0 scale-95"
+                                    enterTo="opacity-100 scale-100"
+                                    leave="ease-in duration-200"
+                                    leaveFrom="opacity-100 scale-100"
+                                    leaveTo="opacity-0 scale-95"
+                                >
+                                    <DialogPanel className="inline-block w-full max-w-2xl p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 shadow-xl rounded-2xl">
+                                        <DialogTitle
+                                            as="h3"
+                                            className="text-xl font-bold leading-6 text-gray-900 dark:text-white flex items-center justify-between"
+                                        >
+                                            <span className="flex items-center">
+                                                <FaHistory className="mr-2 text-blue-500" />
+                                                Riwayat Perubahan BBM
+                                            </span>
+                                            <button
+                                                onClick={() =>
+                                                    setShowBbmHistoryModal(
+                                                        false,
+                                                    )
+                                                }
+                                                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                            >
+                                                <FaTimes className="h-5 w-5 text-gray-500" />
+                                            </button>
+                                        </DialogTitle>
+
+                                        <div className="mt-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                                            {trip.bbm_logs &&
+                                            trip.bbm_logs.length > 0 ? (
+                                                <div className="space-y-6 relative before:absolute before:inset-y-0 before:left-4 before:w-0.5 before:bg-gray-200 dark:before:bg-gray-700">
+                                                    {trip.bbm_logs.map(
+                                                        (log, index) => (
+                                                            <div
+                                                                key={log.id}
+                                                                className="relative pl-10"
+                                                            >
+                                                                <div className="absolute left-0 top-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 border-2 border-blue-500 flex items-center justify-center z-10 shadow-sm">
+                                                                    <FaCheckCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                                                                </div>
+                                                                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700 transition-all hover:shadow-sm">
+                                                                    <div className="flex justify-between items-start mb-3">
+                                                                        <div>
+                                                                            <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center">
+                                                                                <FaUser className="mr-2 h-3 w-3 text-gray-400" />
+                                                                                {
+                                                                                    log
+                                                                                        .user
+                                                                                        ?.name
+                                                                                }
+                                                                            </p>
+                                                                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                                                                {dateFormat(
+                                                                                    new Date(
+                                                                                        log.created_at,
+                                                                                    ),
+                                                                                    "dd mmmm yyyy, HH:MM",
+                                                                                )}
+                                                                            </p>
+                                                                        </div>
+                                                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 font-bold uppercase tracking-wider">
+                                                                            ID #
+                                                                            {
+                                                                                log.id
+                                                                            }
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-700 mb-3 shadow-inner">
+                                                                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 uppercase tracking-tight font-semibold">
+                                                                            Alasan
+                                                                            Perubahan:
+                                                                        </p>
+                                                                        <p className="text-sm text-gray-700 dark:text-gray-300 font-medium italic">
+                                                                            "
+                                                                            {
+                                                                                log.reason
+                                                                            }
+                                                                            "
+                                                                        </p>
+                                                                    </div>
+
+                                                                    <div className="grid grid-cols-2 gap-4">
+                                                                        <div>
+                                                                            <p className="text-[10px] text-red-500 font-bold uppercase mb-2 flex items-center">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>{" "}
+                                                                                Sebelum
+                                                                            </p>
+                                                                            <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400 bg-red-50/30 dark:bg-red-900/10 p-2 rounded-lg border border-red-100/50 dark:border-red-900/20">
+                                                                                <p>
+                                                                                    <span className="font-medium">
+                                                                                        Jenis:
+                                                                                    </span>{" "}
+                                                                                    {log
+                                                                                        .old_data
+                                                                                        .jenis_bbm ||
+                                                                                        "-"}
+                                                                                </p>
+                                                                                <p>
+                                                                                    <span className="font-medium">
+                                                                                        Jumlah:
+                                                                                    </span>{" "}
+                                                                                    {log
+                                                                                        .old_data
+                                                                                        .jumlah_liter
+                                                                                        ? `${log.old_data.jumlah_liter} L`
+                                                                                        : "-"}
+                                                                                </p>
+                                                                                <p>
+                                                                                    <span className="font-medium">
+                                                                                        Harga:
+                                                                                    </span>{" "}
+                                                                                    {log
+                                                                                        .old_data
+                                                                                        .total_harga_bbm
+                                                                                        ? `Rp ${parseInt(log.old_data.total_harga_bbm).toLocaleString("id-ID")}`
+                                                                                        : "-"}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex flex-col">
+                                                                            <p className="text-[10px] text-green-600 font-bold uppercase mb-2 flex items-center">
+                                                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>{" "}
+                                                                                Sesudah
+                                                                            </p>
+                                                                            <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400 bg-green-50/30 dark:bg-green-900/10 p-2 rounded-lg border border-green-100/50 dark:border-green-900/20">
+                                                                                <p>
+                                                                                    <span className="font-medium">
+                                                                                        Jenis:
+                                                                                    </span>{" "}
+                                                                                    {log
+                                                                                        .new_data
+                                                                                        .jenis_bbm ||
+                                                                                        "-"}
+                                                                                </p>
+                                                                                <p>
+                                                                                    <span className="font-medium">
+                                                                                        Jumlah:
+                                                                                    </span>{" "}
+                                                                                    {log
+                                                                                        .new_data
+                                                                                        .jumlah_liter
+                                                                                        ? `${log.new_data.jumlah_liter} L`
+                                                                                        : "-"}
+                                                                                </p>
+                                                                                <p>
+                                                                                    <span className="font-medium">
+                                                                                        Harga:
+                                                                                    </span>{" "}
+                                                                                    {log
+                                                                                        .new_data
+                                                                                        .total_harga_bbm
+                                                                                        ? `Rp ${parseInt(log.new_data.total_harga_bbm).toLocaleString("id-ID")}`
+                                                                                        : "-"}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="mt-3 flex justify-center">
+                                                                        <FaArrowRight className="text-gray-300 rotate-90 sm:rotate-0" />
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ),
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="text-center py-12 bg-gray-50 dark:bg-gray-700/30 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                                                    <div className="bg-gray-100 dark:bg-gray-700 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                                                        <FaHistory className="h-8 w-8 text-gray-400" />
+                                                    </div>
+                                                    <p className="text-gray-500 dark:text-gray-400 font-medium">
+                                                        Belum ada riwayat
+                                                        perubahan data BBM.
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        <div className="mt-8 flex justify-end">
+                                            <button
+                                                type="button"
+                                                className="px-6 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all font-bold text-sm shadow-sm"
+                                                onClick={() =>
+                                                    setShowBbmHistoryModal(
+                                                        false,
+                                                    )
+                                                }
+                                            >
+                                                Tutup
+                                            </button>
+                                        </div>
+                                    </DialogPanel>
+                                </Transition.Child>
+                            </div>
+                        </Dialog>
+                    </Transition>
 
                     {/* Modal EDIT TRIP di samping kanan (BARU) */}
                     <div

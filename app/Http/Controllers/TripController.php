@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Kendaraan;
 use App\Models\Trip;
 use App\Models\TripEditRequest;
+use App\Models\BbmEditLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -159,7 +160,7 @@ class TripController extends Controller
     {
         try {
             $trip = Trip::where('code_trip', $code_trip)
-                        ->with(['kendaraan', 'driver', 'createdBy'])
+                        ->with(['kendaraan', 'driver', 'createdBy', 'bbmLogs.user'])
                         ->firstOrFail();
 
             // Pastikan foto_berangkat dan foto_kembali adalah array
@@ -422,31 +423,73 @@ class TripController extends Controller
     public function updateBbm(Request $request, $code_trip)
     {
         try {
+            // Check Access (Requirement 5)
+            if (Auth::user()->role !== 'admin') {
+                abort(403, 'Hanya admin yang dapat mengedit data BBM.');
+            }
+
             $trip = Trip::where('code_trip', $code_trip)->firstOrFail();
 
+            // Store old data for audit log (Requirement 4)
+            $oldData = [
+                'jenis_bbm' => $trip->jenis_bbm,
+                'jumlah_liter' => $trip->jumlah_liter,
+                'harga_per_liter' => $trip->harga_per_liter,
+                'total_harga_bbm' => $trip->total_harga_bbm,
+                'tanggal_pembelian_bbm' => $trip->tanggal_pembelian_bbm ? $trip->tanggal_pembelian_bbm->format('Y-m-d H:i') : null,
+                'keterangan_bbm' => $trip->keterangan_bbm,
+            ];
+
+            // Validation (Requirement 3)
             $validated = $request->validate([
                 'jenis_bbm' => 'required|string',
-                'jumlah_liter' => 'required|numeric|min:0',
+                'jumlah_liter' => 'required|numeric|min:0.01',
                 'harga_per_liter' => 'required|numeric|min:0',
                 'total_harga' => 'required|numeric|min:0',
+                'tanggal_pembelian_bbm' => 'nullable|date',
+                'keterangan_bbm' => 'nullable|string',
+                'reason' => 'nullable|string', // Alasan perubahan untuk audit
             ]);
+
+            DB::beginTransaction();
 
             $trip->update([
                 'jenis_bbm' => $validated['jenis_bbm'],
                 'jumlah_liter' => $validated['jumlah_liter'],
                 'harga_per_liter' => $validated['harga_per_liter'],
                 'total_harga_bbm' => $validated['total_harga'],
+                'tanggal_pembelian_bbm' => $validated['tanggal_pembelian_bbm'],
+                'keterangan_bbm' => $validated['keterangan_bbm'],
             ]);
+
+            // Create Audit Log (Requirement 4)
+            BbmEditLog::create([
+                'trip_id' => $trip->id,
+                'user_id' => Auth::id(),
+                'old_data' => $oldData,
+                'new_data' => [
+                    'jenis_bbm' => $validated['jenis_bbm'],
+                    'jumlah_liter' => $validated['jumlah_liter'],
+                    'harga_per_liter' => $validated['harga_per_liter'],
+                    'total_harga_bbm' => $validated['total_harga'],
+                    'tanggal_pembelian_bbm' => $validated['tanggal_pembelian_bbm'],
+                    'keterangan_bbm' => $validated['keterangan_bbm'],
+                ],
+                'reason' => $validated['reason'] ?? 'Update data BBM',
+            ]);
+
+            DB::commit();
 
             return redirect()->back()->with([
                 'type' => 'success',
-                'message' => 'Data BBM berhasil disimpan'
+                'message' => 'Data BBM berhasil diperbarui'
             ]);
 
         } catch (\Exception $e) {
+            DB::rollBack();
             return redirect()->back()->with([
                 'type' => 'error',
-                'message' => 'Gagal menyimpan data BBM: ' . $e->getMessage()
+                'message' => 'Gagal memperbarui data BBM: ' . $e->getMessage()
             ]);
         }
     }
