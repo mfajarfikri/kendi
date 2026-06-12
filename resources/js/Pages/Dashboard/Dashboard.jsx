@@ -1,48 +1,140 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import {
     Chart as ChartJS,
     CategoryScale,
     LinearScale,
-    PointElement,
-    LineElement,
     Title,
     Tooltip,
     Legend,
     BarElement,
-    ArcElement,
-    DoughnutController,
-    Filler,
 } from "chart.js";
-import { Line, Bar, Doughnut } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2";
 import { Head, usePage, Link } from "@inertiajs/react";
 import {
     FaCar,
     FaUserTie,
     FaRoute,
-    FaCalendarCheck,
     FaChartLine,
-    FaMapMarkerAlt,
-    FaTachometerAlt,
     FaCalendarAlt,
     FaArrowUp,
     FaArrowDown,
 } from "react-icons/fa";
 
-// Registrasi ChartJS components
 ChartJS.register(
     CategoryScale,
     LinearScale,
-    PointElement,
-    LineElement,
     BarElement,
-    ArcElement,
-    DoughnutController,
     Title,
     Tooltip,
     Legend,
-    Filler
 );
+
+function cx(...classes) {
+    return classes.filter(Boolean).join(" ");
+}
+
+function formatNumber(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "0";
+    return n.toLocaleString("id-ID");
+}
+
+function formatDateTime(dateString) {
+    if (!dateString) return "-";
+    const d = new Date(dateString);
+    if (Number.isNaN(d.getTime())) return "-";
+    return d.toLocaleString("id-ID", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+}
+
+function Card({ children, className }) {
+    return (
+        <div
+            className={cx(
+                "rounded-xl border border-gray-100 bg-white shadow-sm dark:border-gray-800 dark:bg-[#1f2937]",
+                className,
+            )}
+        >
+            {children}
+        </div>
+    );
+}
+
+function CardHeader({ title, subtitle, right }) {
+    return (
+        <div className="flex flex-col gap-2 border-b border-gray-100 px-5 py-4 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    {title}
+                </h3>
+                {subtitle ? (
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                        {subtitle}
+                    </p>
+                ) : null}
+            </div>
+            {right ? <div className="shrink-0">{right}</div> : null}
+        </div>
+    );
+}
+
+function KpiCard({ label, value, helper, icon, accent }) {
+    return (
+        <Card className="p-5">
+            <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        {label}
+                    </div>
+                    <div className="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">
+                        {value}
+                    </div>
+                    {helper ? (
+                        <div className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                            {helper}
+                        </div>
+                    ) : null}
+                </div>
+                <div
+                    className={cx(
+                        "inline-flex h-11 w-11 items-center justify-center rounded-lg border border-gray-100 bg-gray-50 dark:border-gray-800 dark:bg-gray-800",
+                        accent,
+                    )}
+                    aria-hidden="true"
+                >
+                    {icon}
+                </div>
+            </div>
+        </Card>
+    );
+}
+
+function Badge({ status }) {
+    const normalized = String(status || "").toLowerCase();
+    const theme =
+        normalized === "sedang berjalan"
+            ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+            : normalized === "selesai"
+              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+              : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200";
+
+    return (
+        <span
+            className={cx(
+                "inline-flex whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-semibold",
+                theme,
+            )}
+        >
+            {status || "-"}
+        </span>
+    );
+}
 
 export default function Dashboard({
     tripStats,
@@ -52,30 +144,28 @@ export default function Dashboard({
 }) {
     const { auth } = usePage().props;
     const [isDarkMode, setIsDarkMode] = useState(
-        localStorage.getItem("darkMode") === "true"
+        localStorage.getItem("darkMode") === "true",
     );
 
-    // Filter recent trips based on user location and status "Sedang Berjalan"
-    const filteredRecentTrips = React.useMemo(() => {
-        if (auth?.user.isAdmin) {
-            return recentTrips.filter(
-                (trip) => trip.status === "Sedang Berjalan"
-            );
-        }
-        if (!auth?.user.lokasi || auth.user.lokasi.trim() === "") {
-            return recentTrips.filter(
-                (trip) => trip.status === "Sedang Berjalan"
-            );
-        }
-        return recentTrips.filter(
+    const safeRecentTrips = Array.isArray(recentTrips) ? recentTrips : [];
+
+    const runningTrips = useMemo(() => {
+        const base = safeRecentTrips.filter(
+            (trip) => trip.status === "Sedang Berjalan",
+        );
+
+        if (auth?.user?.isAdmin) return base;
+        const lokasi = auth?.user?.lokasi;
+        if (!lokasi || String(lokasi).trim() === "") return base;
+
+        return base.filter(
             (trip) =>
                 trip.lokasi &&
-                trip.lokasi.toLowerCase() === auth.user.lokasi.toLowerCase() &&
-                trip.status === "Sedang Berjalan"
+                String(trip.lokasi).toLowerCase() ===
+                    String(lokasi).toLowerCase(),
         );
-    }, [recentTrips, auth?.user.lokasi, auth?.user.isAdmin]);
+    }, [safeRecentTrips, auth?.user?.lokasi, auth?.user?.isAdmin]);
 
-    // Update chart theme when dark mode changes
     useEffect(() => {
         const darkModeListener = () => {
             setIsDarkMode(localStorage.getItem("darkMode") === "true");
@@ -87,35 +177,21 @@ export default function Dashboard({
         };
     }, []);
 
-    // Warna untuk chart - Modern color palette
     const chartColors = {
-        primary: isDarkMode ? "rgba(129, 140, 248, 1)" : "rgba(79, 70, 229, 1)", // indigo
+        primary: isDarkMode ? "rgba(129, 140, 248, 1)" : "rgba(79, 70, 229, 1)",
         primaryLight: isDarkMode
             ? "rgba(129, 140, 248, 0.2)"
             : "rgba(79, 70, 229, 0.2)",
         secondary: isDarkMode
             ? "rgba(52, 211, 153, 1)"
-            : "rgba(16, 185, 129, 1)", // emerald
+            : "rgba(16, 185, 129, 1)",
         secondaryLight: isDarkMode
             ? "rgba(52, 211, 153, 0.2)"
             : "rgba(16, 185, 129, 0.2)",
-        warning: isDarkMode ? "rgba(251, 191, 36, 1)" : "rgba(245, 158, 11, 1)", // amber
-        warningLight: isDarkMode
-            ? "rgba(251, 191, 36, 0.2)"
-            : "rgba(245, 158, 11, 0.2)",
-        danger: isDarkMode ? "rgba(248, 113, 113, 1)" : "rgba(239, 68, 68, 1)", // red
-        dangerLight: isDarkMode
-            ? "rgba(248, 113, 113, 0.2)"
-            : "rgba(239, 68, 68, 0.2)",
-        purple: isDarkMode ? "rgba(167, 139, 250, 1)" : "rgba(139, 92, 246, 1)", // purple
-        purpleLight: isDarkMode
-            ? "rgba(167, 139, 250, 0.2)"
-            : "rgba(139, 92, 246, 0.2)",
         text: isDarkMode ? "rgba(229, 231, 235, 0.9)" : "rgba(55, 65, 81, 0.9)",
         grid: isDarkMode ? "rgba(75, 85, 99, 0.2)" : "rgba(209, 213, 219, 0.2)",
     };
 
-    // Opsi umum untuk chart
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -130,7 +206,7 @@ export default function Dashboard({
                         weight: 500,
                     },
                     usePointStyle: true,
-                    padding: 20,
+                    padding: 16,
                 },
             },
             tooltip: {
@@ -187,18 +263,8 @@ export default function Dashboard({
                 beginAtZero: true,
             },
         },
-        elements: {
-            line: {
-                tension: 0.4, // Smoother curves
-            },
-            point: {
-                radius: 4,
-                hoverRadius: 6,
-            },
-        },
     };
 
-    // Data untuk Trip Activity Chart (Line Chart)
     const tripActivityData = {
         labels: tripStats?.dailyLabels || [
             "Sen",
@@ -215,9 +281,7 @@ export default function Dashboard({
                 data: tripStats?.dailyCounts || [5, 8, 6, 9, 7, 3, 4],
                 borderColor: chartColors.primary,
                 backgroundColor: chartColors.primaryLight,
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: chartColors.primary,
+                borderWidth: 1,
             },
             {
                 label: "Total Kilometer",
@@ -226,63 +290,27 @@ export default function Dashboard({
                 ],
                 borderColor: chartColors.secondary,
                 backgroundColor: chartColors.secondaryLight,
-                tension: 0.4,
-                fill: true,
-                pointBackgroundColor: chartColors.secondary,
+                borderWidth: 1,
                 yAxisID: "y1",
             },
         ],
     };
 
-    // Opsi khusus untuk Trip Activity Chart
     const tripActivityOptions = {
         ...chartOptions,
         plugins: {
             ...chartOptions.plugins,
-            title: {
-                display: true,
-                text: "Aktivitas Trip Mingguan",
-                color: chartColors.text,
-                font: {
-                    size: 16,
-                    weight: "bold",
-                    family: "'Inter', sans-serif",
-                },
-                padding: {
-                    top: 10,
-                    bottom: 20,
-                },
-            },
+            title: { display: false },
         },
         scales: {
             ...chartOptions.scales,
             y: {
                 ...chartOptions.scales.y,
-                title: {
-                    display: true,
-                    text: "Jumlah Trip",
-                    color: chartColors.text,
-                    font: {
-                        weight: 500,
-                    },
-                    padding: {
-                        bottom: 10,
-                    },
-                },
+                title: { display: false },
             },
             y1: {
                 position: "right",
-                title: {
-                    display: true,
-                    text: "Kilometer",
-                    color: chartColors.text,
-                    font: {
-                        weight: 500,
-                    },
-                    padding: {
-                        bottom: 10,
-                    },
-                },
+                title: { display: false },
                 grid: {
                     drawOnChartArea: false,
                     color: chartColors.grid,
@@ -301,426 +329,301 @@ export default function Dashboard({
         },
     };
 
-    // Data untuk Vehicle Usage Chart (Bar Chart)
-    const vehicleUsageData = {
-        labels: vehicleStats?.labels || [
-            "Avanza",
-            "Innova",
-            "Xenia",
-            "Fortuner",
-            "Alphard",
-        ],
-        datasets: [
-            {
-                label: "Jumlah Trip",
-                data: vehicleStats?.tripCounts || [12, 8, 10, 5, 3],
-                backgroundColor: [
-                    chartColors.primary,
-                    chartColors.secondary,
-                    chartColors.warning,
-                    chartColors.danger,
-                    chartColors.purple,
-                ],
-                borderRadius: 8,
-                borderWidth: 0,
-                hoverOffset: 4,
-            },
-        ],
-    };
-
-    // Opsi khusus untuk Vehicle Usage Chart
-    const vehicleUsageOptions = {
-        ...chartOptions,
-        plugins: {
-            ...chartOptions.plugins,
-            title: {
-                display: true,
-                text: "Penggunaan Kendaraan",
-                color: chartColors.text,
-                font: {
-                    size: 16,
-                    weight: "bold",
-                    family: "'Inter', sans-serif",
-                },
-                padding: {
-                    top: 10,
-                    bottom: 20,
-                },
-            },
-        },
-        scales: {
-            ...chartOptions.scales,
-            y: {
-                ...chartOptions.scales.y,
-                title: {
-                    display: true,
-                    text: "Jumlah Trip",
-                    color: chartColors.text,
-                    font: {
-                        weight: 500,
-                    },
-                    padding: {
-                        bottom: 10,
-                    },
-                },
-            },
-        },
-    };
-
-    // Format tanggal
-    const formatDate = (dateString) => {
-        if (!dateString) return "-";
-        const date = new Date(dateString);
-        return date.toLocaleDateString("id-ID", {
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-        });
-    };
-
-    // Format waktu
-    const formatTime = (dateString) => {
-        if (!dateString) return "-";
-        const date = new Date(dateString);
-        return date.toLocaleTimeString("id-ID", {
-            hour: "2-digit",
-            minute: "2-digit",
-        });
-    };
+    const monthlyTripGrowth = Number(tripStats?.monthlyTripGrowth || 0);
+    const monthlyKmGrowth = Number(tripStats?.monthlyKilometerGrowth || 0);
 
     return (
         <>
             <Head title="Dashboard" />
             <DashboardLayout>
                 <div className="p-0 md:px-0">
-                    {/* Stat Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                        <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md">
-                            <div className="flex justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                        Total Trip
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {tripStats?.totalTrips || 0}
-                                    </p>
-                                </div>
-                                <div className="bg-blue-100 dark:bg-blue-900/30 h-12 w-12 rounded-lg flex items-center justify-center">
-                                    <FaRoute className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                                </div>
+                    <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                            <div className="text-sm text-gray-600 dark:text-gray-300">
+                                Ringkasan operasional
                             </div>
-                            <div className="mt-4 flex items-center text-sm">
-                                <span className="text-green-500 dark:text-green-400 flex items-center">
-                                    <FaArrowUp className="h-3 w-3 mr-1" />
-                                    {tripStats?.activeTrips || 0}
-                                </span>
-                                <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                    Trip aktif saat ini
-                                </span>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                                <span>{auth?.user?.name || "-"}</span>
+                                {auth?.user?.lokasi ? (
+                                    <span>• Lokasi: {auth.user.lokasi}</span>
+                                ) : null}
                             </div>
                         </div>
 
-                        <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md">
-                            <div className="flex justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                        Total Jarak
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {tripStats?.totalKilometers?.toLocaleString() ||
-                                            0}{" "}
-                                        km
-                                    </p>
-                                </div>
-                                <div className="bg-purple-100 dark:bg-purple-900/30 h-12 w-12 rounded-lg flex items-center justify-center">
-                                    <FaChartLine className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                                </div>
-                            </div>
-                            <div className="mt-4 flex items-center text-sm">
-                                <span className="text-green-500 dark:text-green-400 flex items-center">
-                                    <FaArrowUp className="h-3 w-3 mr-1" />
-                                    {tripStats?.weeklyKilometers?.toLocaleString() ||
-                                        0}
-                                </span>
-                                <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                    km dalam 7 hari terakhir
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md">
-                            <div className="flex justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                        Total Kendaraan
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {vehicleStats?.totalVehicles || 0}
-                                    </p>
-                                </div>
-                                <div className="bg-green-100 dark:bg-green-900/30 h-12 w-12 rounded-lg flex items-center justify-center">
-                                    <FaCar className="h-6 w-6 text-green-600 dark:text-green-400" />
-                                </div>
-                            </div>
-                            <div className="mt-4 flex items-center text-sm">
-                                <span className="text-green-500 dark:text-green-400 flex items-center">
-                                    <FaArrowUp className="h-3 w-3 mr-1" />
-                                    {vehicleStats?.availableVehicles || 0}
-                                </span>
-                                <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                    kendaraan tersedia
-                                </span>
-                            </div>
-                        </div>
-
-                        <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md">
-                            <div className="flex justify-between">
-                                <div>
-                                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">
-                                        Total Driver
-                                    </p>
-                                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                        {driverStats?.totalDrivers || 0}
-                                    </p>
-                                </div>
-                                <div className="bg-amber-100 dark:bg-amber-900/30 h-12 w-12 rounded-lg flex items-center justify-center">
-                                    <FaUserTie className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                                </div>
-                            </div>
-                            <div className="mt-4 flex items-center text-sm">
-                                <span className="text-green-500 dark:text-green-400 flex items-center">
-                                    <FaArrowUp className="h-3 w-3 mr-1" />
-                                    {driverStats?.availableDrivers || 0}
-                                </span>
-                                <span className="text-gray-500 dark:text-gray-400 ml-2">
-                                    driver tersedia
-                                </span>
-                            </div>
+                        <div className="flex flex-wrap gap-2">
+                            <Link
+                                href="/trip"
+                                className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-[#1f2937] dark:text-gray-100 dark:hover:bg-gray-800"
+                            >
+                                Trip
+                            </Link>
+                            <Link
+                                href="/kendaraan"
+                                className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-[#1f2937] dark:text-gray-100 dark:hover:bg-gray-800"
+                            >
+                                Kendaraan
+                            </Link>
+                            <Link
+                                href="/driver"
+                                className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-[#1f2937] dark:text-gray-100 dark:hover:bg-gray-800"
+                            >
+                                Driver
+                            </Link>
+                            <Link
+                                href="/tamu"
+                                className="inline-flex items-center justify-center rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:border-gray-800 dark:bg-[#1f2937] dark:text-gray-100 dark:hover:bg-gray-800"
+                            >
+                                Tamu
+                            </Link>
                         </div>
                     </div>
 
-                    {/* Monthly Stats and Chart */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-                        <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
-                                <FaCalendarAlt className="mr-2 text-blue-500 dark:text-blue-400" />
-                                Statistik Bulanan
-                            </h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-gradient-to-br from-indigo-500 to-purple-600 p-4 rounded-xl text-white">
-                                    <p className="text-xs font-medium text-indigo-100 mb-1">
-                                        Total Trip Bulan Ini
-                                    </p>
-                                    <p className="text-2xl font-bold">
-                                        {tripStats?.monthlyTrips || 0}
-                                    </p>
-                                    <div className="mt-2 text-xs flex items-center text-indigo-100">
-                                        {tripStats?.monthlyTripGrowth >= 0 ? (
-                                            <svg
-                                                className="w-3 h-3 mr-1"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M5 10l7-7m0 0l7 7m-7-7v18"
-                                                ></path>
-                                            </svg>
-                                        ) : (
-                                            <svg
-                                                className="w-3 h-3 mr-1"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                                                ></path>
-                                            </svg>
-                                        )}
-                                        <span>
-                                            {Math.abs(
-                                                tripStats?.monthlyTripGrowth ||
-                                                    0
-                                            )}
-                                            % dari bulan lalu
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-4 rounded-xl text-white">
-                                    <p className="text-xs font-medium text-emerald-100 mb-1">
-                                        Jarak Tempuh Bulan Ini
-                                    </p>
-                                    <p className="text-2xl font-bold">
-                                        {tripStats?.monthlyKilometers?.toLocaleString() ||
-                                            0}{" "}
-                                        km
-                                    </p>
-                                    <div className="mt-2 text-xs flex items-center text-emerald-100">
-                                        {tripStats?.monthlyKilometerGrowth >=
-                                        0 ? (
-                                            <svg
-                                                className="w-3 h-3 mr-1"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M5 10l7-7m0 0l7 7m-7-7v18"
-                                                ></path>
-                                            </svg>
-                                        ) : (
-                                            <svg
-                                                className="w-3 h-3 mr-1"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                                xmlns="http://www.w3.org/2000/svg"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                                                ></path>
-                                            </svg>
-                                        )}
-                                        <span>
-                                            {Math.abs(
-                                                tripStats?.monthlyKilometerGrowth ||
-                                                    0
-                                            )}
-                                            % dari bulan lalu
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                        <KpiCard
+                            label="Trip Berjalan"
+                            value={formatNumber(tripStats?.activeTrips || 0)}
+                            helper="Status: Sedang Berjalan"
+                            icon={
+                                <FaRoute className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                            }
+                        />
+                        <KpiCard
+                            label="Total Trip"
+                            value={formatNumber(tripStats?.totalTrips || 0)}
+                            helper="Seluruh data trip"
+                            icon={
+                                <FaCalendarAlt className="h-5 w-5 text-gray-700 dark:text-gray-200" />
+                            }
+                        />
+                        <KpiCard
+                            label="Kendaraan"
+                            value={formatNumber(
+                                vehicleStats?.totalVehicles || 0,
+                            )}
+                            helper={`${formatNumber(vehicleStats?.availableVehicles || 0)} tersedia`}
+                            icon={
+                                <FaCar className="h-5 w-5 text-gray-700 dark:text-gray-200" />
+                            }
+                        />
+                        <KpiCard
+                            label="Driver"
+                            value={formatNumber(driverStats?.totalDrivers || 0)}
+                            helper={`${formatNumber(driverStats?.availableDrivers || 0)} tersedia`}
+                            icon={
+                                <FaUserTie className="h-5 w-5 text-gray-700 dark:text-gray-200" />
+                            }
+                        />
+                    </div>
 
-                        <div className="lg:col-span-2 bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md">
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
-                                <FaChartLine className="mr-2 text-blue-500 dark:text-blue-400" />
-                                Aktivitas Trip 7 Hari Terakhir
-                            </h3>
-                            <div className="h-64">
+                    <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                        <Card className="lg:col-span-2">
+                            <CardHeader
+                                title="Aktivitas 7 Hari"
+                                subtitle="Total Trip dan Kilometer per hari."
+                                right={
+                                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                                        Sumbu kanan: Kilometer
+                                    </div>
+                                }
+                            />
+                            <div className="h-72 px-5 py-4">
                                 <Bar
                                     data={tripActivityData}
                                     options={tripActivityOptions}
                                 />
                             </div>
-                        </div>
+                        </Card>
+
+                        <Card>
+                            <CardHeader
+                                title="Ringkasan Bulanan"
+                                subtitle="Perbandingan terhadap bulan sebelumnya."
+                            />
+                            <div className="space-y-3 px-5 py-4">
+                                <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        Trip Bulan Ini
+                                    </div>
+                                    <div className="mt-2 flex items-end justify-between gap-3">
+                                        <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                                            {formatNumber(
+                                                tripStats?.monthlyTrips || 0,
+                                            )}
+                                        </div>
+                                        <div
+                                            className={cx(
+                                                "inline-flex items-center text-xs font-semibold",
+                                                monthlyTripGrowth >= 0
+                                                    ? "text-green-600 dark:text-green-400"
+                                                    : "text-red-600 dark:text-red-400",
+                                            )}
+                                        >
+                                            {monthlyTripGrowth >= 0 ? (
+                                                <FaArrowUp className="mr-1 h-3 w-3" />
+                                            ) : (
+                                                <FaArrowDown className="mr-1 h-3 w-3" />
+                                            )}
+                                            {Math.abs(monthlyTripGrowth)}%
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        Kilometer Bulan Ini
+                                    </div>
+                                    <div className="mt-2 flex items-end justify-between gap-3">
+                                        <div className="text-2xl font-semibold text-gray-900 dark:text-white">
+                                            {formatNumber(
+                                                tripStats?.monthlyKilometers ||
+                                                    0,
+                                            )}{" "}
+                                            km
+                                        </div>
+                                        <div
+                                            className={cx(
+                                                "inline-flex items-center text-xs font-semibold",
+                                                monthlyKmGrowth >= 0
+                                                    ? "text-green-600 dark:text-green-400"
+                                                    : "text-red-600 dark:text-red-400",
+                                            )}
+                                        >
+                                            {monthlyKmGrowth >= 0 ? (
+                                                <FaArrowUp className="mr-1 h-3 w-3" />
+                                            ) : (
+                                                <FaArrowDown className="mr-1 h-3 w-3" />
+                                            )}
+                                            {Math.abs(monthlyKmGrowth)}%
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="rounded-lg border border-gray-100 bg-white p-4 dark:border-gray-800 dark:bg-[#1f2937]">
+                                    <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        Total Kilometer
+                                    </div>
+                                    <div className="mt-2 flex items-center justify-between gap-3">
+                                        <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                                            {formatNumber(
+                                                tripStats?.totalKilometers || 0,
+                                            )}{" "}
+                                            km
+                                        </div>
+                                        <div className="inline-flex items-center text-xs font-semibold text-gray-600 dark:text-gray-300">
+                                            <FaChartLine className="mr-1 h-3 w-3" />
+                                            {formatNumber(
+                                                tripStats?.weeklyKilometers ||
+                                                    0,
+                                            )}{" "}
+                                            km / 7 hari
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
                     </div>
 
-                    {/* Recent Trips */}
-                    <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md mb-6">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-4 flex items-center">
-                            <FaRoute className="mr-2 text-blue-500 dark:text-blue-400" />
-                            Trip Terbaru
-                        </h3>
+                    <Card className="mt-6">
+                        <CardHeader
+                            title="Trip Sedang Berjalan"
+                            subtitle="Menampilkan trip berjalan sesuai lokasi pengguna."
+                            right={
+                                <Link
+                                    href="/trip"
+                                    className="text-sm font-semibold text-blue-700 hover:underline dark:text-blue-400"
+                                >
+                                    Buka modul Trip
+                                </Link>
+                            }
+                        />
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                <thead>
+                                <thead className="bg-gray-50 dark:bg-gray-800">
                                     <tr>
-                                        <th className="px-4 py-3 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Kode Trip
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                                            Kode
                                         </th>
-                                        <th className="px-4 py-3 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
                                             Tujuan
                                         </th>
-                                        <th className="px-4 py-3 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
                                             Kendaraan
                                         </th>
-                                        <th className="px-4 py-3 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
                                             Driver
                                         </th>
-                                        <th className="px-4 py-3 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                                            Waktu Berangkat
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                                            Berangkat
                                         </th>
-                                        <th className="px-4 py-3 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                                        <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
                                             Status
+                                        </th>
+                                        <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-300">
+                                            Aksi
                                         </th>
                                     </tr>
                                 </thead>
-                                <tbody className="bg-white divide-y divide-gray-200 dark:bg-[#1f2937] dark:divide-gray-700">
-                                    {filteredRecentTrips &&
-                                    filteredRecentTrips.length > 0 ? (
-                                        filteredRecentTrips.map((trip) => (
+                                <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-[#1f2937]">
+                                    {runningTrips.length > 0 ? (
+                                        runningTrips.map((trip) => (
                                             <tr
-                                                key={trip.id}
-                                                className="hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                                                key={trip.id || trip.code_trip}
+                                                className="hover:bg-gray-50 dark:hover:bg-gray-800"
                                             >
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                                                    {trip.code_trip}
+                                                <td className="whitespace-nowrap px-5 py-3 text-sm font-semibold text-gray-900 dark:text-white">
+                                                    {trip.code_trip || "-"}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                                                    {trip.tujuan}
+                                                <td className="px-5 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                                    {trip.tujuan || "-"}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                                                    {trip.kendaraan?.merek} (
-                                                    {
-                                                        trip.kendaraan
-                                                            ?.plat_kendaraan
-                                                    }
-                                                    )
+                                                <td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                                    {trip.kendaraan
+                                                        ?.plat_kendaraan || "-"}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
+                                                <td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700 dark:text-gray-300">
                                                     {trip.driver?.name || "-"}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                                                    {new Date(
-                                                        trip.waktu_keberangkatan
-                                                    ).toLocaleString("id-ID", {
-                                                        day: "numeric",
-                                                        month: "short",
-                                                        year: "numeric",
-                                                        hour: "2-digit",
-                                                        minute: "2-digit",
-                                                    })}
+                                                <td className="whitespace-nowrap px-5 py-3 text-sm text-gray-700 dark:text-gray-300">
+                                                    {formatDateTime(
+                                                        trip.waktu_keberangkatan,
+                                                    )}
                                                 </td>
-                                                <td className="px-4 py-3 whitespace-nowrap">
-                                                    <span
-                                                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                                        ${
-                                                            trip.status ===
-                                                            "Sedang Berjalan"
-                                                                ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
-                                                                : trip.status ===
-                                                                  "Selesai"
-                                                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-                                                        }`}
-                                                    >
-                                                        {trip.status}
-                                                    </span>
+                                                <td className="whitespace-nowrap px-5 py-3 text-sm">
+                                                    <Badge
+                                                        status={trip.status}
+                                                    />
+                                                </td>
+                                                <td className="whitespace-nowrap px-5 py-3 text-right text-sm">
+                                                    {trip.code_trip ? (
+                                                        <Link
+                                                            href={`/trips/${trip.code_trip}`}
+                                                            className="font-semibold text-blue-700 hover:underline dark:text-blue-400"
+                                                        >
+                                                            Detail
+                                                        </Link>
+                                                    ) : (
+                                                        <span className="text-gray-400">
+                                                            -
+                                                        </span>
+                                                    )}
                                                 </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
                                             <td
-                                                colSpan="6"
-                                                className="px-4 py-4 text-center text-sm text-gray-500 dark:text-gray-400"
+                                                colSpan={7}
+                                                className="px-5 py-10 text-center text-sm text-gray-500 dark:text-gray-400"
                                             >
-                                                Tidak ada data trip terbaru
+                                                Tidak ada trip yang sedang
+                                                berjalan.
                                             </td>
                                         </tr>
                                     )}
                                 </tbody>
                             </table>
                         </div>
-                    </div>
+                    </Card>
                 </div>
             </DashboardLayout>
         </>
