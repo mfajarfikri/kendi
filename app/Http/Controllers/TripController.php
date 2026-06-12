@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use App\Models\Kendaraan;
 use App\Models\Trip;
 use App\Models\TripEditRequest;
 use App\Models\BbmEditLog;
 use App\Models\User;
+use OpenSpout\Common\Entity\Style\CellAlignment;
+use OpenSpout\Common\Entity\Style\CellVerticalAlignment;
+use OpenSpout\Common\Entity\Style\Style;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Events\TripUpdated;
@@ -14,6 +19,8 @@ use App\Models\Driver;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
+use OpenSpout\Common\Entity\Row;
+use OpenSpout\Writer\XLSX\Writer as XlsxWriter;
 
 
 class TripController extends Controller
@@ -34,6 +41,97 @@ class TripController extends Controller
             'drivers' => Driver::all(),
             'appliedLocation' => $userLokasi ?? ''
         ]);
+    }
+
+    public function export(Request $request)
+    {
+        $exportTarget = $request->input('target', 'trip');
+        $exportType = $request->input('export_type', 'all');
+        $month = trim((string) $request->input('month', ''));
+
+        $query = $this->buildFilteredTripQuery($request)
+            ->with(['kendaraan:id,plat_kendaraan,merek', 'driver:id,name'])
+            ->orderBy('waktu_keberangkatan');
+
+        if ($exportTarget === 'bbm') {
+            $query->whereNotNull('jumlah_liter');
+        }
+
+        $filename = $this->makeExportFilename($exportTarget, $exportType, $month);
+        $temporaryFile = tempnam(sys_get_temp_dir(), 'trip-export-');
+
+        if ($temporaryFile === false) {
+            abort(500, 'Gagal menyiapkan file export.');
+        }
+
+        $writer = new XlsxWriter();
+        $writer->openToFile($temporaryFile);
+
+        if ($exportTarget === 'bbm') {
+            $this->writeLegacyBbmWorkbook($writer, $query, $exportType, $month);
+        } else {
+            $rupiahStyle = $this->makeRupiahCellStyle();
+
+            $writer->addRow(Row::fromValues([
+                'No',
+                'Kode Trip',
+                'Plat Kendaraan',
+                'Merek Kendaraan',
+                'Driver',
+                'Waktu Keberangkatan',
+                'Waktu Kembali',
+                'KM Awal',
+                'KM Akhir',
+                'Tujuan',
+                'Jarak',
+                'Penumpang',
+                'Jenis BBM',
+                'Jumlah Liter',
+                'Harga Per Liter',
+                'Total Harga BBM',
+                'Catatan',
+                'Status',
+                'Lokasi',
+            ]));
+
+            $number = 1;
+            foreach ($query->cursor() as $trip) {
+                $writer->addRow(Row::fromValuesWithStyles([
+                    $number++,
+                    $trip->code_trip ?? '-',
+                    optional($trip->kendaraan)->plat_kendaraan ?? '-',
+                    optional($trip->kendaraan)->merek ?? '-',
+                    optional($trip->driver)->name ?? '-',
+                    optional($trip->waktu_keberangkatan)->format('d/m/Y H:i:s') ?? '-',
+                    optional($trip->waktu_kembali)->format('d/m/Y H:i:s') ?? '-',
+                    $trip->km_awal ?? '-',
+                    $trip->km_akhir ?? '-',
+                    $trip->tujuan ?? '-',
+                    $trip->jarak ?? '-',
+                    $trip->penumpang ?? '-',
+                    $trip->jenis_bbm ?? '-',
+                    $trip->jumlah_liter ?? '-',
+                    $trip->harga_per_liter ?? '-',
+                    $trip->total_harga_bbm ?? '-',
+                    $trip->catatan ?? '-',
+                    $trip->status ?? '-',
+                    $trip->lokasi ?? '-',
+                ], null, [
+                    14 => $rupiahStyle,
+                    15 => $rupiahStyle,
+                ]));
+            }
+        }
+
+        $writer->close();
+
+        return response()->download(
+            $temporaryFile,
+            $filename,
+            [
+                'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            ]
+        )->deleteFileAfterSend(true);
     }
 
     public function add()
@@ -492,5 +590,242 @@ class TripController extends Controller
                 'message' => 'Gagal memperbarui data BBM: ' . $e->getMessage()
             ]);
         }
+    }
+
+    private function buildFilteredTripQuery(Request $request): Builder
+    {
+        $query = Trip::query();
+        $userLokasi = optional($request->user())->lokasi;
+
+        if (!empty($userLokasi)) {
+            $query->where('lokasi', $userLokasi);
+        }
+
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $query->where(function (Builder $builder) use ($search) {
+                $builder
+                    ->where('code_trip', 'like', '%' . $search . '%')
+                    ->orWhere('tujuan', 'like', '%' . $search . '%')
+                    ->orWhereHas('kendaraan', function (Builder $kendaraanQuery) use ($search) {
+                        $kendaraanQuery->where('plat_kendaraan', 'like', '%' . $search . '%');
+                    })
+                    ->orWhereHas('driver', function (Builder $driverQuery) use ($search) {
+                        $driverQuery->where('name', 'like', '%' . $search . '%');
+                    });
+            });
+        }
+
+        $month = trim((string) $request->input('month', ''));
+        if (preg_match('/^\d{4}-\d{2}$/', $month)) {
+            $monthDate = Carbon::createFromFormat('Y-m', $month)->startOfMonth();
+            $query->whereBetween('waktu_keberangkatan', [
+                $monthDate->copy()->startOfMonth(),
+                $monthDate->copy()->endOfMonth(),
+            ]);
+
+            return $query;
+        }
+
+        $startDate = $request->input('start_date');
+        if (!empty($startDate)) {
+            $query->whereDate('waktu_keberangkatan', '>=', $startDate);
+        }
+
+        $endDate = $request->input('end_date');
+        if (!empty($endDate)) {
+            $query->whereDate('waktu_keberangkatan', '<=', $endDate);
+        }
+
+        return $query;
+    }
+
+    private function makeExportFilename(string $target, string $exportType, string $month): string
+    {
+        $prefix = $target === 'bbm' ? 'laporan_bbm' : 'data_trip_kendaraan';
+
+        if ($exportType === 'month' && preg_match('/^\d{4}-\d{2}$/', $month)) {
+            return $prefix . '_' . $month . '.xlsx';
+        }
+
+        return $prefix . '_' . now()->format('Y-m-d_His') . '.xlsx';
+    }
+
+    private function writeLegacyBbmWorkbook(
+        XlsxWriter $writer,
+        Builder $query,
+        string $exportType,
+        string $month
+    ): void {
+        $vehiclePlates = Kendaraan::query()
+            ->orderBy('plat_kendaraan')
+            ->pluck('plat_kendaraan')
+            ->all();
+
+        if ($exportType === 'month') {
+            $sheetName = $this->formatMonthSheetName($month);
+            $trips = (clone $query)->get();
+            $this->writeLegacyBbmSheet(
+                $writer,
+                $writer->getCurrentSheet(),
+                $trips->all(),
+                $vehiclePlates,
+                $sheetName,
+                0
+            );
+
+            return;
+        }
+
+        $monthGroups = [];
+        foreach ((clone $query)->cursor() as $trip) {
+            if (!$trip->waktu_keberangkatan) {
+                continue;
+            }
+
+            $key = Carbon::parse($trip->waktu_keberangkatan)->format('Y-m');
+            $monthGroups[$key][] = $trip;
+        }
+
+        ksort($monthGroups);
+
+        if ($monthGroups === []) {
+            $this->writeLegacyBbmSheet(
+                $writer,
+                $writer->getCurrentSheet(),
+                [],
+                $vehiclePlates,
+                'Data BBM',
+                0
+            );
+
+            return;
+        }
+
+        $sheetIndex = 0;
+        foreach ($monthGroups as $key => $trips) {
+            $sheet = $sheetIndex === 0
+                ? $writer->getCurrentSheet()
+                : $writer->addNewSheetAndMakeItCurrent();
+
+            $this->writeLegacyBbmSheet(
+                $writer,
+                $sheet,
+                $trips,
+                $vehiclePlates,
+                $this->formatMonthSheetName($key),
+                $sheetIndex
+            );
+
+            $sheetIndex++;
+        }
+    }
+
+    private function writeLegacyBbmSheet(
+        XlsxWriter $writer,
+        \OpenSpout\Writer\Common\Entity\Sheet $sheet,
+        array $trips,
+        array $vehiclePlates,
+        string $sheetName,
+        int $sheetIndex
+    ): void {
+        $sheet->setName($sheetName);
+        $sheet->setColumnWidth(4, 1);
+        $sheet->setColumnWidth(18, 2);
+        $sheet->setColumnWidthForRange(4, 3, 33);
+        $sheet->setColumnWidth(15, 34);
+
+        $headerStyle = (new Style())
+            ->setFontBold()
+            ->setCellAlignment(CellAlignment::CENTER)
+            ->setCellVerticalAlignment(CellVerticalAlignment::CENTER);
+        $rupiahStyle = $this->makeRupiahCellStyle();
+
+        $writer->addRow(Row::fromValues($this->makeLegacyBbmHeaderRowOne(), $headerStyle));
+        $writer->addRow(Row::fromValues($this->makeLegacyBbmHeaderRowTwo(), $headerStyle));
+
+        $writer->getOptions()->mergeCells(0, 1, 0, 2, $sheetIndex);
+        $writer->getOptions()->mergeCells(2, 1, 32, 1, $sheetIndex);
+
+        $aggregates = [];
+        foreach ($trips as $trip) {
+            $plate = optional($trip->kendaraan)->plat_kendaraan;
+            if (!$plate || !$trip->waktu_keberangkatan) {
+                continue;
+            }
+
+            $day = (int) Carbon::parse($trip->waktu_keberangkatan)->format('j');
+            $aggregates[$plate][$day]['liter'] = ($aggregates[$plate][$day]['liter'] ?? 0)
+                + (float) ($trip->jumlah_liter ?? 0);
+            $aggregates[$plate][$day]['total'] = ($aggregates[$plate][$day]['total'] ?? 0)
+                + (float) ($trip->total_harga_bbm ?? 0);
+        }
+
+        foreach (array_values($vehiclePlates) as $index => $plate) {
+            $row = [$index + 1, $plate];
+            $totalRupiah = 0;
+
+            for ($day = 1; $day <= 31; $day++) {
+                $dailyLiter = $aggregates[$plate][$day]['liter'] ?? 0;
+                $totalRupiah += $aggregates[$plate][$day]['total'] ?? 0;
+                $row[] = $dailyLiter > 0 ? $this->formatLegacyLiterValue($dailyLiter) : '';
+            }
+
+            $row[] = $totalRupiah > 0 ? (int) round($totalRupiah) : 0;
+            $writer->addRow(Row::fromValuesWithStyles($row, null, [
+                33 => $rupiahStyle,
+            ]));
+        }
+    }
+
+    private function makeLegacyBbmHeaderRowOne(): array
+    {
+        $row = ['NO', 'NOMOR POLISI'];
+
+        for ($day = 1; $day <= 31; $day++) {
+            $row[] = $day === 1 ? 'TANGGAL' : '';
+        }
+
+        $row[] = 'JUMLAH (Rp)';
+
+        return $row;
+    }
+
+    private function makeLegacyBbmHeaderRowTwo(): array
+    {
+        $row = ['', 'Kendaraan Roda Empat'];
+
+        for ($day = 1; $day <= 31; $day++) {
+            $row[] = $day;
+        }
+
+        $row[] = '';
+
+        return $row;
+    }
+
+    private function formatLegacyLiterValue(float $value): string
+    {
+        $formatted = rtrim(rtrim(number_format($value, 2, '.', ''), '0'), '.');
+
+        return str_replace('.', ',', $formatted);
+    }
+
+    private function formatMonthSheetName(string $month): string
+    {
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) {
+            return 'Data BBM';
+        }
+
+        return Carbon::createFromFormat('Y-m', $month)
+            ->locale('id')
+            ->translatedFormat('F Y');
+    }
+
+    private function makeRupiahCellStyle(): Style
+    {
+        return (new Style())
+            ->setCellAlignment(CellAlignment::RIGHT)
+            ->setFormat('"Rp" #,##0');
     }
 }

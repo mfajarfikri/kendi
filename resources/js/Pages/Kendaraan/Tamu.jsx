@@ -30,7 +30,6 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { Menu, Transition, RadioGroup, Listbox } from "@headlessui/react";
 import { Fragment } from "react";
-import * as XLSX from "xlsx";
 import "react-datepicker/dist/react-datepicker.css";
 
 const toastConfig = {
@@ -43,9 +42,7 @@ const toastConfig = {
     progress: undefined,
 };
 
-export default function Tamu({ tamus: initialsTamus, auth }) {
-    const [tamus, setTamus] = useState(initialsTamus || []);
-    const [currentPage, setCurrentPage] = useState(1);
+export default function Tamu({ tamus, auth, filters = {}, stats = {} }) {
     const [searchTerm, setSearchTerm] = useState("");
     const [showPopup, setShowPopup] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -71,44 +68,106 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
     const [startDate, setStartDate] = useState("");
     const [endDate, setEndDate] = useState("");
 
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
+    const tamuItems = Array.isArray(tamus?.data) ? tamus.data : [];
+    const currentPage = tamus?.current_page ?? 1;
+    const totalPages = tamus?.last_page ?? 1;
+    const indexOfFirstItem = tamus?.from ? tamus.from - 1 : 0;
+    const indexOfLastItem = tamus?.to ?? tamuItems.length;
+    const totalItems = tamus?.total ?? tamuItems.length;
 
-    const filteredTamus = Array.isArray(tamus)
-        ? tamus.filter((tamu) => {
-              // Filter by lokasi user if lokasi is not empty
-              if (auth.user.lokasi && auth.user.lokasi.trim() !== "") {
-                  if (tamu.lokasi !== auth.user.lokasi) {
-                      return false;
-                  }
-              }
-              const matchesText = tamu?.plat_kendaraan
-                  ?.toLowerCase()
-                  ?.includes(searchTerm.toLowerCase());
+    useEffect(() => {
+        setSearchTerm(filters?.search || "");
+        setStartDate(filters?.start_date || "");
+        setEndDate(filters?.end_date || "");
+        setItemsPerPage(Number(filters?.per_page) || 8);
+    }, [
+        filters?.search,
+        filters?.start_date,
+        filters?.end_date,
+        filters?.per_page,
+    ]);
 
-              if (!startDate && !endDate) return matchesText;
+    const fetchTamus = (overrides = {}) => {
+        const params = {
+            search:
+                overrides.search !== undefined ? overrides.search : searchTerm,
+            start_date:
+                overrides.start_date !== undefined
+                    ? overrides.start_date
+                    : startDate,
+            end_date:
+                overrides.end_date !== undefined ? overrides.end_date : endDate,
+            per_page:
+                overrides.per_page !== undefined
+                    ? overrides.per_page
+                    : itemsPerPage,
+            page: overrides.page ?? currentPage,
+        };
 
-              const arr = tamu?.waktu_kedatangan
-                  ? new Date(tamu.waktu_kedatangan)
-                  : null;
-              if (!arr) return false;
+        Object.keys(params).forEach((key) => {
+            if (
+                params[key] === "" ||
+                params[key] === null ||
+                params[key] === undefined
+            ) {
+                delete params[key];
+            }
+        });
 
-              const startBound = startDate
-                  ? new Date(`${startDate}T00:00:00`)
-                  : null;
-              const endBound = endDate ? new Date(`${endDate}T23:59:59`) : null;
+        router.get(route("tamu.index"), params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+            only: ["tamus", "filters", "stats"],
+            onStart: () => setIsLoading(true),
+            onFinish: () => setIsLoading(false),
+        });
+    };
 
-              if (startBound && arr < startBound) return false;
-              if (endBound && arr > endBound) return false;
+    useEffect(() => {
+        const filterChanged =
+            searchTerm !== (filters?.search || "") ||
+            startDate !== (filters?.start_date || "") ||
+            endDate !== (filters?.end_date || "") ||
+            Number(itemsPerPage) !== (Number(filters?.per_page) || 8);
 
-              return matchesText;
-          })
-        : [];
+        if (!filterChanged) {
+            return;
+        }
 
-    // Pagination
-    const totalPages = Math.ceil(filteredTamus.length / itemsPerPage);
-    const indexOfLastItem = currentPage * itemsPerPage;
-    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-    const currentItems = filteredTamus.slice(indexOfFirstItem, indexOfLastItem);
+        const timeoutId = setTimeout(() => {
+            fetchTamus({
+                search: searchTerm,
+                start_date: startDate,
+                end_date: endDate,
+                per_page: itemsPerPage,
+                page: 1,
+            });
+        }, 400);
+
+        return () => clearTimeout(timeoutId);
+    }, [
+        searchTerm,
+        startDate,
+        endDate,
+        itemsPerPage,
+        filters?.search,
+        filters?.start_date,
+        filters?.end_date,
+        filters?.per_page,
+    ]);
+
+    const paginate = (pageNumber) => {
+        if (
+            pageNumber < 1 ||
+            pageNumber > totalPages ||
+            pageNumber === currentPage
+        ) {
+            return;
+        }
+
+        fetchTamus({ page: pageNumber });
+    };
 
     const getPaginationNumbers = () => {
         const pages = [];
@@ -138,7 +197,6 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
 
     const handleItemsPerPageChange = (value) => {
         setItemsPerPage(value);
-        setCurrentPage(1);
     };
 
     const handleSubmit = async (e) => {
@@ -190,16 +248,11 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
             router.post(route("tamu.store"), submitFormData, {
                 forceFormData: true,
                 preserveScroll: true,
-                onSuccess: (page) => {
+                onSuccess: () => {
                     toast.success(
                         `Kendaraan ${formData.plat_kendaraan} berhasil ditambahkan!`,
                         toastConfig,
                     );
-
-                    // Update state tamus dengan data terbaru
-                    if (page.props.tamus) {
-                        setTamus(page.props.tamus);
-                    }
 
                     // Reset form
                     setFormData({
@@ -443,98 +496,23 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
     // Fungsi untuk export ke Excel berdasarkan bulan atau semua data
     const exportToExcel = () => {
         try {
-            let dataToExport = [];
-            let fileName = "";
+            const params = {
+                export_type: exportType,
+                search: searchTerm || undefined,
+            };
 
             if (exportType === "month") {
-                // Filter data berdasarkan bulan yang dipilih
-                const year = exportDate.getFullYear();
-                const month = exportDate.getMonth();
-
-                dataToExport = Array.isArray(tamus)
-                    ? tamus.filter((tamu) => {
-                          const tamuDate = new Date(tamu.waktu_kedatangan);
-                          return (
-                              tamuDate.getFullYear() === year &&
-                              tamuDate.getMonth() === month
-                          );
-                      })
-                    : [];
-
-                if (dataToExport.length === 0) {
-                    toast.warning(
-                        `Tidak ada data untuk bulan ${month + 1}/${year}`,
-                    );
-                    return;
-                }
-
-                // Set nama file dengan bulan dan tahun
-                const monthName = exportDate.toLocaleString("id-ID", {
-                    month: "long",
-                });
-                fileName = `Data_Kendaraan_Tamu_${monthName}_${year}.xlsx`;
+                params.month = `${exportDate.getFullYear()}-${String(
+                    exportDate.getMonth() + 1,
+                ).padStart(2, "0")}`;
             } else {
-                // Export semua data
-                dataToExport = tamus || [];
-
-                if (dataToExport.length === 0) {
-                    toast.warning("Tidak ada data untuk diexport");
-                    return;
-                }
-
-                // Set nama file dengan tanggal hari ini
-                fileName = `Data_Kendaraan_Tamu_All_${dateFormat(
-                    new Date(),
-                    "dd-mm-yyyy",
-                )}.xlsx`;
+                params.start_date = startDate || undefined;
+                params.end_date = endDate || undefined;
             }
 
-            // Format data untuk Excel
-            const formattedData = dataToExport.map((tamu, index) => ({
-                No: index + 1,
-                "No Polisi": tamu.plat_kendaraan,
-                "Waktu Kedatangan": dateFormat(
-                    tamu.waktu_kedatangan,
-                    "dd/mm/yyyy HH:MM:ss",
-                ),
-                "Waktu Kepergian": tamu.waktu_kepergian
-                    ? dateFormat(tamu.waktu_kepergian, "dd/mm/yyyy HH:MM:ss")
-                    : "-",
-                Status: tamu.status,
-            }));
-
-            // Buat workbook dan worksheet
-            const worksheet = XLSX.utils.json_to_sheet(formattedData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Kendaraan Tamu");
-
-            // Atur lebar kolom
-            const colWidths = [
-                { wch: 5 }, // No
-                { wch: 15 }, // No Polisi
-                { wch: 20 }, // Waktu Kedatangan
-                { wch: 20 }, // Waktu Kepergian
-                { wch: 10 }, // Status
-            ];
-            worksheet["!cols"] = colWidths;
-
-            // Generate file Excel
-            XLSX.writeFile(workbook, fileName);
-
-            // Tampilkan pesan sukses
-            if (exportType === "month") {
-                const year = exportDate.getFullYear();
-                const monthName = exportDate.toLocaleString("id-ID", {
-                    month: "long",
-                });
-                toast.success(
-                    `Data berhasil diexport ke Excel untuk bulan ${monthName} ${year}`,
-                );
-            } else {
-                toast.success("Semua data berhasil diexport ke Excel");
-            }
-
+            window.location.href = route("tamu.export", params);
             setShowExportModal(false);
+            toast.success("Export XLSX dimulai.", toastConfig);
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             toast.error("Terjadi kesalahan saat mengexport data");
@@ -596,16 +574,11 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                     "X-Requested-With": "XMLHttpRequest",
                     Accept: "application/json",
                 },
-                onSuccess: (page) => {
+                onSuccess: () => {
                     toast.success(
                         `Kendaraan ${selectedTamu.plat_kendaraan} berhasil ditutup!`,
                         toastConfig,
                     );
-
-                    // Update state tamus dengan data terbaru
-                    if (page.props.tamus) {
-                        setTamus(page.props.tamus);
-                    }
 
                     // Reset form
                     setPhotos([]);
@@ -785,7 +758,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                     Total Kendaraan
                                 </h3>
                                 <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-white">
-                                    {tamus.length}
+                                    {stats.total ?? totalItems}
                                 </p>
                             </div>
                         </div>
@@ -800,11 +773,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                     Kendaraan Masuk
                                 </h3>
                                 <p className="text-xl sm:text-2xl font-bold text-green-600 dark:text-green-400">
-                                    {
-                                        tamus.filter(
-                                            (tamu) => tamu.status === "New",
-                                        ).length
-                                    }
+                                    {stats.masuk ?? 0}
                                 </p>
                             </div>
                         </div>
@@ -819,11 +788,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                     Kendaraan Keluar
                                 </h3>
                                 <p className="text-xl sm:text-2xl font-bold text-red-600 dark:text-red-400">
-                                    {
-                                        tamus.filter(
-                                            (tamu) => tamu.status === "Trip",
-                                        ).length
-                                    }
+                                    {stats.keluar ?? 0}
                                 </p>
                             </div>
                         </div>
@@ -838,7 +803,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                     Total Tamu
                                 </h3>
                                 <p className="text-xl sm:text-2xl font-bold text-purple-600 dark:text-purple-400">
-                                    {tamus.length}
+                                    {stats.total ?? totalItems}
                                 </p>
                             </div>
                         </div>
@@ -872,7 +837,6 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                             value={startDate}
                                             onChange={(e) => {
                                                 setStartDate(e.target.value);
-                                                setCurrentPage(1);
                                             }}
                                             className="w-full pl-9 pr-2 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
                                             aria-label="Tanggal mulai"
@@ -888,7 +852,6 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                             value={endDate}
                                             onChange={(e) => {
                                                 setEndDate(e.target.value);
-                                                setCurrentPage(1);
                                             }}
                                             className="w-full pl-9 pr-2 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-xs text-gray-700 dark:text-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
                                             aria-label="Tanggal akhir"
@@ -1002,7 +965,7 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                         </tr>
                                     </thead>
                                     <tbody className="bg-white dark:bg-[#1f2937] divide-y divide-gray-200 dark:divide-gray-700">
-                                        {currentItems.map((item, index) => (
+                                        {tamuItems.map((item, index) => (
                                             <tr
                                                 key={index}
                                                 className="hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200"
@@ -1173,15 +1136,15 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                             <div className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 text-center sm:text-left mb-4 sm:mb-0">
                                 Showing{" "}
                                 <span className="font-medium mx-1">
-                                    {indexOfFirstItem + 1}
+                                    {totalItems > 0 ? indexOfFirstItem + 1 : 0}
                                 </span>
                                 to{" "}
                                 <span className="font-medium mx-1">
-                                    {Math.min(indexOfLastItem, tamus.length)}
+                                    {indexOfLastItem}
                                 </span>
                                 of{" "}
                                 <span className="font-medium mx-1">
-                                    {tamus.length}
+                                    {totalItems}
                                 </span>{" "}
                                 entries
                             </div>
@@ -1714,8 +1677,9 @@ export default function Tamu({ tamus: initialsTamus, auth }) {
                                                 Export Semua Data
                                             </h3>
                                             <p className="text-sm text-blue-600 dark:text-blue-400 mt-1">
-                                                Semua data kendaraan tamu akan
-                                                diexport ke file Excel
+                                                Semua data kendaraan tamu yang
+                                                sesuai filter akan diexport ke
+                                                file XLSX Excel
                                             </p>
                                         </div>
                                     </div>

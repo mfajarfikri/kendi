@@ -40,7 +40,6 @@ import {
     FaCalendarPlus,
     FaGasPump,
 } from "react-icons/fa";
-import * as XLSX from "xlsx";
 import Modal from "@/Components/ModalNew";
 import { RadioGroup } from "@headlessui/react";
 import { ToastContainer, toast, Flip } from "react-toastify";
@@ -170,311 +169,26 @@ export default function Trip({
         return () => clearInterval(timer);
     }, []);
 
-    // Export BBM ke Excel
-    const exportBBMToExcel = () => {
+    const exportToExcel = () => {
         try {
-            const workbook = XLSX.utils.book_new();
-            let fileName = "";
-            let tripsWithBBM = [];
-
-            if (exportType === "month") {
-                const year = exportDate.getFullYear();
-                const month = exportDate.getMonth();
-                const monthName = exportDate.toLocaleString("id-ID", {
-                    month: "long",
-                });
-
-                tripsWithBBM = trips.filter((trip) => {
-                    if (!trip.waktu_keberangkatan || !trip.jumlah_liter)
-                        return false;
-                    const d = new Date(trip.waktu_keberangkatan);
-                    return d.getFullYear() === year && d.getMonth() === month;
-                });
-
-                if (tripsWithBBM.length === 0) {
-                    toast.warning(
-                        `Tidak ada data BBM untuk bulan ${monthName} ${year}`,
-                        toastConfig,
-                    );
-                    return;
-                }
-                fileName = `Laporan BBM ${monthName} ${year}.xlsx`;
-            } else {
-                tripsWithBBM = trips.filter(
-                    (trip) => trip.waktu_keberangkatan && trip.jumlah_liter,
-                );
-                if (tripsWithBBM.length === 0) {
-                    toast.warning(
-                        "Tidak ada data BBM untuk diexport",
-                        toastConfig,
-                    );
-                    return;
-                }
-                fileName = `Laporan BBM Semua Data ${dateFormat(new Date(), "dd-mm-yyyy")}.xlsx`;
-            }
-
-            // Fungsi Helper untuk membuat sheet per bulan
-            const createSheetForData = (data, sheetName) => {
-                const row1 = ["NO", "NOMOR POLISI"];
-                for (let i = 1; i <= 31; i++)
-                    row1.push(i === 1 ? "TANGGAL" : "");
-                row1.push("JUMLAH (Rp)");
-
-                const row2 = ["", "Kendaraan Roda Empat"];
-                for (let i = 1; i <= 31; i++) row2.push(i);
-
-                const aoaData = [row1, row2];
-                const vehicles = [
-                    ...new Set(kendaraans.map((k) => k.plat_kendaraan)),
-                ];
-
-                const formatRupiahExcel = (number) => {
-                    if (!number || number === 0) return 0;
-                    return Math.round(number);
-                };
-
-                vehicles.forEach((plat, idx) => {
-                    const row = [idx + 1, plat];
-                    let totalRupiah = 0;
-
-                    for (let day = 1; day <= 31; day++) {
-                        const dailyTrips = data
-                            .filter((t) => t.kendaraan?.plat_kendaraan === plat)
-                            .filter(
-                                (t) =>
-                                    new Date(
-                                        t.waktu_keberangkatan,
-                                    ).getDate() === day,
-                            );
-
-                        const dailyLiter = dailyTrips.reduce(
-                            (sum, t) => sum + (parseFloat(t.jumlah_liter) || 0),
-                            0,
-                        );
-                        totalRupiah += dailyTrips.reduce(
-                            (sum, t) =>
-                                sum + (parseFloat(t.total_harga_bbm) || 0),
-                            0,
-                        );
-
-                        row.push(
-                            dailyLiter > 0
-                                ? dailyLiter.toString().replace(".", ",")
-                                : "",
-                        );
-                    }
-                    row.push(
-                        totalRupiah > 0 ? formatRupiahExcel(totalRupiah) : 0,
-                    );
-                    aoaData.push(row);
-                });
-
-                const worksheet = XLSX.utils.aoa_to_sheet(aoaData);
-
-                // Formatting
-                const range = XLSX.utils.decode_range(worksheet["!ref"]);
-                for (let r = 2; r <= range.e.r; r++) {
-                    const cellRef = XLSX.utils.encode_cell({ r: r, c: 33 });
-                    if (worksheet[cellRef]) {
-                        worksheet[cellRef].t = "n";
-                        worksheet[cellRef].z = "#,##0";
-                    }
-                }
-
-                worksheet["!merges"] = [
-                    { s: { r: 0, c: 0 }, e: { r: 1, c: 0 } },
-                    { s: { r: 0, c: 2 }, e: { r: 0, c: 32 } },
-                ];
-
-                const colWidths = [{ wch: 4 }, { wch: 18 }];
-                for (let i = 1; i <= 31; i++) colWidths.push({ wch: 4 });
-                colWidths.push({ wch: 15 });
-                worksheet["!cols"] = colWidths;
-
-                XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+            const params = {
+                target: exportTarget,
+                export_type: exportType,
+                search: searchTerm || undefined,
             };
 
             if (exportType === "month") {
-                const monthName = exportDate.toLocaleString("id-ID", {
-                    month: "long",
-                });
-                const year = exportDate.getFullYear();
-                createSheetForData(tripsWithBBM, `${monthName} ${year}`);
+                params.month = `${exportDate.getFullYear()}-${String(
+                    exportDate.getMonth() + 1,
+                ).padStart(2, "0")}`;
             } else {
-                // Kelompokkan data berdasarkan Bulan & Tahun untuk Multiple Sheets
-                const groups = tripsWithBBM.reduce((acc, trip) => {
-                    const d = new Date(trip.waktu_keberangkatan);
-                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(trip);
-                    return acc;
-                }, {});
-
-                // Urutkan kunci (YYYY-MM) secara kronologis
-                const sortedKeys = Object.keys(groups).sort();
-
-                sortedKeys.forEach((key) => {
-                    const [year, month] = key.split("-");
-                    const dateObj = new Date(year, parseInt(month) - 1);
-                    const monthName = dateObj.toLocaleString("id-ID", {
-                        month: "long",
-                    });
-                    createSheetForData(groups[key], `${monthName} ${year}`);
-                });
+                params.start_date = startDate || undefined;
+                params.end_date = endDate || undefined;
             }
 
-            XLSX.writeFile(workbook, fileName);
-            toast.success(`Data BBM berhasil diexport`, toastConfig);
+            window.location.href = route("trips.export", params);
             setShowExportModal(false);
-        } catch (error) {
-            console.error("Error exporting BBM:", error);
-            toast.error("Gagal mengexport data BBM", toastConfig);
-        }
-    };
-
-    // Export ke Excel
-    const exportToExcel = () => {
-        try {
-            let dataToExport = [];
-            let fileName = "";
-
-            if (exportType === "month") {
-                // Validasi bulan yang dipilih
-                const selectedMonth = exportDate
-                    ? `${exportDate.getFullYear()}-${String(
-                          exportDate.getMonth() + 1,
-                      ).padStart(2, "0")}`
-                    : "";
-
-                if (!selectedMonth) {
-                    toast.error(
-                        "Silakan pilih bulan terlebih dahulu!",
-                        toastConfig,
-                    );
-                    return;
-                }
-
-                // Filter data berdasarkan bulan yang dipilih
-                const year = exportDate.getFullYear();
-                const month = exportDate.getMonth(); // 0-indexed
-
-                dataToExport = Array.isArray(trips)
-                    ? trips.filter((trip) => {
-                          const tripDate = new Date(trip.waktu_keberangkatan);
-                          return (
-                              tripDate.getFullYear() === year &&
-                              tripDate.getMonth() === month
-                          );
-                      })
-                    : [];
-
-                if (dataToExport.length === 0) {
-                    const monthName = exportDate.toLocaleString("id-ID", {
-                        month: "long",
-                    });
-                    toast.warning(
-                        `Tidak ada data untuk bulan ${monthName} ${year}`,
-                        toastConfig,
-                    );
-                    return;
-                }
-
-                // Set nama file dengan bulan dan tahun
-                const monthName = exportDate.toLocaleString("id-ID", {
-                    month: "long",
-                });
-                fileName = `Data Kendaraan Dinas ${monthName} ${year}.xlsx`;
-            } else {
-                // Export semua data
-                dataToExport = trips || [];
-
-                if (dataToExport.length === 0) {
-                    toast.warning("Tidak ada data untuk diexport", toastConfig);
-                    return;
-                }
-
-                // Set nama file dengan tanggal hari ini
-                fileName = `Data Kendaraan Dinas All ${dateFormat(
-                    new Date(),
-                    "dd-mm-yyyy",
-                )}.xlsx`;
-            }
-
-            // Format data untuk Excel dengan penanganan nilai null/undefined
-            const formattedData = dataToExport.map((trip, index) => ({
-                No: index + 1,
-                "Kode Trip": trip.code_trip || "-",
-                "Plat Kendaraan": trip.kendaraan?.plat_kendaraan || "-",
-                "Merek Kendaraan": trip.kendaraan?.merek || "-",
-                Driver: trip.driver?.name || "-",
-                "Waktu Keberangkatan":
-                    formatDate(trip.waktu_keberangkatan) || "-",
-                "Waktu Kembali": formatDate(trip.waktu_kembali) || "-",
-                "Km Awal": trip.km_awal || 0,
-                "Km Akhir": trip.km_akhir || "-",
-                Tujuan: trip.tujuan || "-",
-                Jarak: trip.jarak ? trip.jarak + " KM" : "-",
-                Penumpang: trip.penumpang || "-",
-                "Jenis BBm": trip.jenis_bbm || "-",
-                "Jumlah Liter": trip.jumlah_liter || "-",
-                "Harga Per Liter": trip.harga_per_liter || "-",
-                "Total Harga BBm": trip.total_harga_bbm || "-",
-                Catatan: trip.catatan || "-",
-                Status: trip.status || "-",
-            }));
-
-            // Buat workbook dan worksheet
-            const worksheet = XLSX.utils.json_to_sheet(formattedData);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(
-                workbook,
-                worksheet,
-                "Data Trip Kendaraan",
-            );
-
-            // Atur lebar kolom
-            const colWidths = [
-                { wch: 5 }, // A - No
-                { wch: 15 }, // B - Kode Trip
-                { wch: 15 }, // C - Plat Kendaraan
-                { wch: 20 }, // D - Merek Kendaraan
-                { wch: 20 }, // E - Driver
-                { wch: 25 }, // F - Waktu Keberangkatan
-                { wch: 25 }, // G - Waktu Kembali
-                { wch: 10 }, // H - Km Awal
-                { wch: 10 }, // I - Km Akhir
-                { wch: 25 }, // J - Tujuan
-                { wch: 10 }, // K - Jarak
-                { wch: 25 }, // L - Penumpang
-                { wch: 25 }, // M - Jenis BBm
-                { wch: 25 }, // N - Jumlah Liter
-                { wch: 25 }, // O - Harga Per Liter
-                { wch: 25 }, // P - Total Harga BBm
-                { wch: 30 }, // M - Catatan
-                { wch: 15 }, // N - Status
-            ];
-            worksheet["!cols"] = colWidths;
-
-            // Generate file Excel
-            XLSX.writeFile(workbook, fileName);
-
-            // Tampilkan pesan sukses
-            if (exportType === "month") {
-                const monthName = exportDate.toLocaleString("id-ID", {
-                    month: "long",
-                });
-                toast.success(
-                    `Data berhasil diexport ke Excel untuk bulan ${monthName} ${exportDate.getFullYear()}`,
-                    toastConfig,
-                );
-            } else {
-                toast.success(
-                    "Semua data berhasil diexport ke Excel",
-                    toastConfig,
-                );
-            }
-
-            setShowExportModal(false);
+            toast.success("Export XLSX dimulai", toastConfig);
         } catch (error) {
             console.error("Error exporting to Excel:", error);
             toast.error("Terjadi kesalahan saat mengexport data", toastConfig);
@@ -1798,9 +1512,7 @@ export default function Trip({
                         <button
                             type="button"
                             onClick={
-                                exportTarget === "trip"
-                                    ? exportToExcel
-                                    : exportBBMToExcel
+                                exportToExcel
                             }
                             className="px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white rounded-lg transition-colors flex items-center space-x-2 shadow-sm hover:shadow-md"
                         >

@@ -50,6 +50,7 @@ Route::middleware(['auth', 'role:admin,user'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard.index');
 
     Route::get('/trip', [TripController::class, 'index'])->name('trips.index');
+    Route::get('/trips/export', [TripController::class, 'export'])->name('trips.export');
     Route::post('/trips', [TripController::class, 'create'])->name('trips.create');
     Route::get('/trips/add', [TripController::class, 'add'])->name('trips.add');
     Route::post('/trips/store', [TripController::class, 'store'])->name('trips.store');
@@ -58,6 +59,7 @@ Route::middleware(['auth', 'role:admin,user'])->group(function () {
     Route::get('/trips/{code_trip}/close', [TripController::class, 'closeForm'])->name('trips.close.form');
 
     Route::get('/tamu', [TamuController::class, 'index'])->name('tamu.index');
+    Route::get('/tamu/export', [TamuController::class, 'export'])->name('tamu.export');
     Route::post('/tamu', [TamuController::class, 'store'])->name('tamu.store');
 
 
