@@ -12,42 +12,116 @@ use App\Events\TripUpdated;
 use App\Models\Driver;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Database\Eloquent\Builder;
 
 
 class TripController extends Controller
 {
     /**
+     * Authorize access to a single Trip record based on user role + location.
+     * Admin selalu diizinkan.
+     * Non-admin hanya diizinkan jika trip.lokasi === user.lokasi.
+     * Men-abort 403 jika tidak diizinkan (mencegah akses via manipulasi URL).
+     */
+    private function authorizeTripAccess(Trip $trip): void
+    {
+        $user = Auth::user();
+
+        if (!$user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        if ($user->isAdmin) {
+            return;
+        }
+
+        $userLokasi = trim((string) $user->lokasi);
+        $tripLokasi = trim((string) $trip->lokasi);
+
+        if ($userLokasi === '' || $tripLokasi === '' || strcasecmp($userLokasi, $tripLokasi) !== 0) {
+            Log::warning('Unauthorized trip location access attempt', [
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+                'user_lokasi' => $userLokasi,
+                'trip_id' => $trip->id,
+                'trip_code' => $trip->code_trip,
+                'trip_lokasi' => $tripLokasi,
+                'ip' => request()->ip(),
+            ]);
+            abort(403, 'Anda tidak memiliki izin untuk mengakses data trip di lokasi ini.');
+        }
+    }
+
+    /**
+     * Apply location filter to Trip listing query.
+     * Admin: tanpa filter.
+     * Non-admin: where lokasi = user.lokasi (tanpa lokasi = hasil kosong).
+     */
+    private function applyTripLocationFilter(Builder $query, ?User $user): void
+    {
+        if (!$user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        if ($user->isAdmin) {
+            return;
+        }
+
+        $lokasi = trim((string) $user->lokasi);
+
+        if ($lokasi === '') {
+            $query->whereRaw('1 = 0');
+            return;
+        }
+
+        $query->where('lokasi', $lokasi);
+    }
+
+    /**
      * Display a listing of the resource.
      */
     public function index()
     {
-        $userLokasi = optional(Auth::user())->lokasi;
+        $user = Auth::user();
+
         $tripsQuery = Trip::with(['kendaraan', 'driver', 'createdBy'])->latest();
-        if (!empty($userLokasi)) {
-            $tripsQuery->where('lokasi', $userLokasi);
-        }
+        $this->applyTripLocationFilter($tripsQuery, $user);
+
+        $trips = $tripsQuery->get();
+
+        $appliedLocation = $user && !$user->isAdmin ? trim((string) $user->lokasi) : '';
+
         return Inertia::render('Kendaraan/Trip', [
-            'trips' => $tripsQuery->get(),
+            'trips' => $trips,
             'kendaraans' => Kendaraan::all(),
             'drivers' => Driver::all(),
-            'appliedLocation' => $userLokasi ?? ''
+            'appliedLocation' => $appliedLocation,
         ]);
     }
 
     public function add()
     {
+        $user = Auth::user();
+        $defaultLocation = $user && !$user->isAdmin ? trim((string) $user->lokasi) : '';
+
         return Inertia::render('Kendaraan/TripAdd', [
             'kendaraans' => Kendaraan::all(),
             'drivers' => Driver::all(),
+            'defaultLocation' => $defaultLocation,
+            'isAdmin' => $user ? $user->isAdmin : false,
         ]);
     }
 
     public function closeForm($code_trip)
     {
         $trip = Trip::where('code_trip', $code_trip)
-                    ->with(['kendaraan', 'driver'])
-                    ->firstOrFail();
+            ->with(['kendaraan', 'driver'])
+            ->firstOrFail();
+
+        $this->authorizeTripAccess($trip);
+
         return Inertia::render('Kendaraan/TripClose', [
             'trip' => $trip,
         ]);
@@ -58,22 +132,46 @@ class TripController extends Controller
      */
     public function create(Request $request)
     {
+        $user = Auth::user();
+
+        if (!$user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $forcedLokasi = null;
+
+        if (!$user->isAdmin) {
+            $userLokasi = trim((string) $user->lokasi);
+            if ($userLokasi === '') {
+                return response()->json([
+                    'type' => 'error',
+                    'message' => 'Akun Anda belum memiliki lokasi yang terdaftar. Hubungi admin.',
+                ], 403);
+            }
+            $forcedLokasi = $userLokasi;
+        } else {
+            $forcedLokasi = $request->input('lokasi');
+            if (!$forcedLokasi || trim($forcedLokasi) === '') {
+                $forcedLokasi = 'Tidak Diketahui';
+            }
+        }
+
         $request->merge([
-            'lokasi' => $request->input('lokasi', optional(Auth::user())->lokasi ?? 'Tidak Diketahui'),
+            'lokasi' => $forcedLokasi,
         ]);
-        // Validate the request
+
         $validator = Validator::make($request->all(), [
             'code_trip' => 'required|unique:trips,code_trip',
             'kendaraan_id' => 'required|exists:kendaraans,id',
             'driver_id' => 'required|exists:drivers,id',
-            'waktu_keberangkatan' => 'required|date_format:Y-m-d\TH:i', // Format dari input datetime-local
+            'waktu_keberangkatan' => 'required|date_format:Y-m-d\TH:i',
             'tujuan' => 'required|string',
             'catatan' => 'nullable|string',
             'km' => 'required|numeric',
             'penumpang' => 'nullable|string',
             'foto_berangkat' => 'required|array',
-            'foto_berangkat.*' => 'required|image|max:5120', // 5MB max per image
-            'lokasi' => 'nullable|string',
+            'foto_berangkat.*' => 'required|image|max:5120',
+            'lokasi' => 'required|string',
         ]);
 
         if ($validator->fails()) {
@@ -159,10 +257,11 @@ class TripController extends Controller
     {
         try {
             $trip = Trip::where('code_trip', $code_trip)
-                        ->with(['kendaraan', 'driver', 'createdBy'])
-                        ->firstOrFail();
+                ->with(['kendaraan', 'driver', 'createdBy'])
+                ->firstOrFail();
 
-            // Pastikan foto_berangkat dan foto_kembali adalah array
+            $this->authorizeTripAccess($trip);
+
             $trip->foto_berangkat = is_string($trip->foto_berangkat)
                 ? json_decode($trip->foto_berangkat, true)
                 : $trip->foto_berangkat;
@@ -177,56 +276,52 @@ class TripController extends Controller
                 'allDrivers' => Driver::select('id', 'name', 'phone_number')->where('status', 'Tersedia')->get(),
             ]);
         } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Gagal menampilkan detail trip');
+            return redirect()->back()->with('error', 'Gagal menampilkan detail trip: ' . $e->getMessage());
         }
     }
 
     public function requestEdit(Request $request, $codeTrip)
-{
-    // 1. Validasi Data
-    $validated = $request->validate([
-        'penumpang' => 'nullable|string|max:255',
-        'tujuan' => 'required|string|max:255',
-        'waktu_keberangkatan' => 'required|date',
-        // Catatan: Pastikan waktu kembali bisa null jika trip belum selesai
-        'waktu_kembali' => 'nullable|date|after_or_equal:waktu_keberangkatan',
-        'catatan' => 'nullable|string',
-        'km_awal' => 'required|numeric|min:0',
-        // KM akhir harus lebih besar dari KM awal
-        'km_akhir' => 'required|numeric|min:' . $request->km_awal, 
-        'kendaraan_id' => 'required|exists:kendaraans,id',
-        'driver_id' => 'required|exists:drivers,id',
-    ]);
+    {
+        $validated = $request->validate([
+            'penumpang' => 'nullable|string|max:255',
+            'tujuan' => 'required|string|max:255',
+            'waktu_keberangkatan' => 'required|date',
+            'waktu_kembali' => 'nullable|date|after_or_equal:waktu_keberangkatan',
+            'catatan' => 'nullable|string',
+            'km_awal' => 'required|numeric|min:0',
+            'km_akhir' => 'required|numeric|min:' . $request->km_awal,
+            'kendaraan_id' => 'required|exists:kendaraans,id',
+            'driver_id' => 'required|exists:drivers,id',
+        ]);
 
-    $trip = Trip::where('code_trip', $codeTrip)->firstOrFail();
+        $trip = Trip::where('code_trip', $codeTrip)->firstOrFail();
 
-    // 2. Siapkan Data Lama (Old Data) dari Trip Saat Ini
-    $oldData = [
-        'penumpang' => $trip->penumpang,
-        'tujuan' => $trip->tujuan,
-        'waktu_keberangkatan' => $trip->waktu_keberangkatan,
-        'waktu_kembali' => $trip->waktu_kembali,
-        'catatan' => $trip->catatan,
-        'km_awal' => $trip->km_awal,
-        'km_akhir' => $trip->km_akhir,
-        'kendaraan_id' => $trip->kendaraan_id,
-        'driver_id' => $trip->driver_id,
-        'kendaraan_plat' => $trip->kendaraan->plat_kendaraan,
-        'driver_name' => $trip->driver->name,
-    ];
+        $this->authorizeTripAccess($trip);
 
-    // 3. Simpan sebagai Permintaan Edit
-    TripEditRequest::create([
-        'trip_id' => $trip->id,
-        'requested_by_user_id' => Auth::id(),
-        'old_data' => json_encode($oldData),
-        'new_data' => json_encode($validated), // Hanya simpan data yang sudah divalidasi
-        'status' => 'pending',
-    ]);
+        $oldData = [
+            'penumpang' => $trip->penumpang,
+            'tujuan' => $trip->tujuan,
+            'waktu_keberangkatan' => $trip->waktu_keberangkatan,
+            'waktu_kembali' => $trip->waktu_kembali,
+            'catatan' => $trip->catatan,
+            'km_awal' => $trip->km_awal,
+            'km_akhir' => $trip->km_akhir,
+            'kendaraan_id' => $trip->kendaraan_id,
+            'driver_id' => $trip->driver_id,
+            'kendaraan_plat' => $trip->kendaraan->plat_kendaraan,
+            'driver_name' => $trip->driver->name,
+        ];
 
-    // 4. Redirect dengan pesan sukses
-    return redirect()->back()->with('success', 'Permintaan perubahan trip berhasil diajukan dan menunggu persetujuan Admin.');
-}
+        TripEditRequest::create([
+            'trip_id' => $trip->id,
+            'requested_by_user_id' => Auth::id(),
+            'old_data' => json_encode($oldData),
+            'new_data' => json_encode($validated),
+            'status' => 'pending',
+        ]);
+
+        return redirect()->back()->with('success', 'Permintaan perubahan trip berhasil diajukan dan menunggu persetujuan Admin.');
+    }
 
     // Gunakan Route Model Binding untuk mendapatkan instance TripEditRequest
     public function approveEdit(TripEditRequest $editRequest)
@@ -333,11 +428,13 @@ class TripController extends Controller
     public function edit($code_trip)
     {
         $trip = Trip::where('code_trip', $code_trip)
-                    ->with(['kendaraan', 'driver', 'photos'])
-                    ->firstOrFail();
+            ->with(['kendaraan', 'driver', 'photos'])
+            ->firstOrFail();
+
+        $this->authorizeTripAccess($trip);
 
         return Inertia::render('Kendaraan/EditTrip', [
-            'trip' => $trip
+            'trip' => $trip,
         ]);
     }
 
@@ -359,14 +456,15 @@ class TripController extends Controller
 
     public function close(Request $request, Trip $trip)
     {
+        $this->authorizeTripAccess($trip);
+
         try {
-            // Validate the request data
             $validated = $request->validate([
                 'km_akhir' => 'required|numeric|min:' . $trip->km_awal,
                 'waktu_kembali' => 'required|date',
                 'jarak' => 'required|numeric',
                 'foto_kembali' => 'required|array',
-                'foto_kembali.*' => 'required|image|max:5120', // 5MB max per image
+                'foto_kembali.*' => 'required|image|max:5120',
             ]);
 
             // Process photos
@@ -424,6 +522,8 @@ class TripController extends Controller
         try {
             $trip = Trip::where('code_trip', $code_trip)->firstOrFail();
 
+            $this->authorizeTripAccess($trip);
+
             $validated = $request->validate([
                 'jenis_bbm' => 'required|string',
                 'jumlah_liter' => 'required|numeric|min:0',
@@ -440,13 +540,12 @@ class TripController extends Controller
 
             return redirect()->back()->with([
                 'type' => 'success',
-                'message' => 'Data BBM berhasil disimpan'
+                'message' => 'Data BBM berhasil disimpan',
             ]);
-
         } catch (\Exception $e) {
             return redirect()->back()->with([
                 'type' => 'error',
-                'message' => 'Gagal menyimpan data BBM: ' . $e->getMessage()
+                'message' => 'Gagal menyimpan data BBM: ' . $e->getMessage(),
             ]);
         }
     }

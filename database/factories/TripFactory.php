@@ -11,17 +11,11 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TripFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
         $waktu_keberangkatan = fake()->dateTimeBetween('-1 month', 'now');
         $waktu_kembali = fake()->dateTimeBetween($waktu_keberangkatan, '+2 days');
-        
-        
+
         return [
             'code_trip' => fake()->unique()->regexify('[A-Za-z0-9]{10}'),
             'kendaraan_id' => Kendaraan::factory(),
@@ -39,7 +33,36 @@ class TripFactory extends Factory
             'status' => fake()->randomElement(['Sedang Berjalan', 'Selesai']),
             'catatan' => fake()->optional()->text(200),
             'foto_berangkat' => "",
-            'penumpang' => fake()->name()
+            'penumpang' => fake()->name(),
+            'lokasi' => fake()->randomElement(['Karawang', 'Purwakarta']),
         ];
+    }
+
+    public function karawang(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'lokasi' => 'Karawang',
+        ]);
+    }
+
+    public function purwakarta(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'lokasi' => 'Purwakarta',
+        ]);
+    }
+
+    public function sedangBerjalan(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'Sedang Berjalan',
+        ]);
+    }
+
+    public function selesai(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'status' => 'Selesai',
+        ]);
     }
 }

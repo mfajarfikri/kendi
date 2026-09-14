@@ -27,6 +27,7 @@ import {
     FaCalendarAlt,
     FaArrowUp,
     FaArrowDown,
+    FaShieldAlt,
 } from "react-icons/fa";
 
 // Registrasi ChartJS components
@@ -41,7 +42,7 @@ ChartJS.register(
     Title,
     Tooltip,
     Legend,
-    Filler
+    Filler,
 );
 
 export default function Dashboard({
@@ -52,28 +53,17 @@ export default function Dashboard({
 }) {
     const { auth } = usePage().props;
     const [isDarkMode, setIsDarkMode] = useState(
-        localStorage.getItem("darkMode") === "true"
+        localStorage.getItem("darkMode") === "true",
     );
 
-    // Filter recent trips based on user location and status "Sedang Berjalan"
-    const filteredRecentTrips = React.useMemo(() => {
-        if (auth?.user.isAdmin) {
-            return recentTrips.filter(
-                (trip) => trip.status === "Sedang Berjalan"
-            );
-        }
-        if (!auth?.user.lokasi || auth.user.lokasi.trim() === "") {
-            return recentTrips.filter(
-                (trip) => trip.status === "Sedang Berjalan"
-            );
-        }
-        return recentTrips.filter(
-            (trip) =>
-                trip.lokasi &&
-                trip.lokasi.toLowerCase() === auth.user.lokasi.toLowerCase() &&
-                trip.status === "Sedang Berjalan"
-        );
-    }, [recentTrips, auth?.user.lokasi, auth?.user.isAdmin]);
+    const isAdmin = !!auth?.user?.isAdmin;
+    const userLocation = auth?.user?.lokasi ? auth.user.lokasi.trim() : "";
+
+    // Data recentTrips SUDAH difilter SERVER-SIDE (backend):
+    //   - Admin: semua trip dengan status "Sedang Berjalan" (tanpa filter lokasi)
+    //   - User biasa: hanya trip dengan status "Sedang Berjalan" DAN lokasi === user.lokasi
+    // Tidak perlu filter client-side lagi.
+    const filteredRecentTrips = recentTrips || [];
 
     // Update chart theme when dark mode changes
     useEffect(() => {
@@ -393,6 +383,37 @@ export default function Dashboard({
             <Head title="Dashboard" />
             <DashboardLayout>
                 <div className="p-0 md:px-0">
+                    {/* Context Bar: Role & Location Indicator */}
+                    <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <div>
+                            <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex items-center">
+                                <FaTachometerAlt className="mr-2 text-indigo-600 dark:text-indigo-400" />
+                                Dashboard
+                            </h2>
+                            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Selamat datang, {auth?.user?.name || "Pengguna"}
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 self-start sm:self-auto">
+                            {isAdmin ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-amber-400 to-orange-500 text-white shadow-sm ring-1 ring-amber-500/20">
+                                    <FaShieldAlt className="h-3.5 w-3.5" />
+                                    Admin · Semua Lokasi
+                                </span>
+                            ) : userLocation ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-sky-500 to-indigo-600 text-white shadow-sm ring-1 ring-sky-500/20">
+                                    <FaMapMarkerAlt className="h-3.5 w-3.5" />
+                                    Hanya Lokasi: {userLocation}
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200 ring-1 ring-gray-200 dark:ring-gray-600">
+                                    <FaMapMarkerAlt className="h-3.5 w-3.5" />
+                                    Lokasi tidak ditentukan
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Stat Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                         <div className="bg-white dark:bg-[#1f2937] rounded-xl shadow-sm border border-gray-100 dark:border-gray-800 p-5 transition-all hover:shadow-md">
@@ -549,7 +570,7 @@ export default function Dashboard({
                                         <span>
                                             {Math.abs(
                                                 tripStats?.monthlyTripGrowth ||
-                                                    0
+                                                    0,
                                             )}
                                             % dari bulan lalu
                                         </span>
@@ -600,7 +621,7 @@ export default function Dashboard({
                                         <span>
                                             {Math.abs(
                                                 tripStats?.monthlyKilometerGrowth ||
-                                                    0
+                                                    0,
                                             )}
                                             % dari bulan lalu
                                         </span>
@@ -680,7 +701,7 @@ export default function Dashboard({
                                                 </td>
                                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
                                                     {new Date(
-                                                        trip.waktu_keberangkatan
+                                                        trip.waktu_keberangkatan,
                                                     ).toLocaleString("id-ID", {
                                                         day: "numeric",
                                                         month: "short",
@@ -697,9 +718,9 @@ export default function Dashboard({
                                                             "Sedang Berjalan"
                                                                 ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
                                                                 : trip.status ===
-                                                                  "Selesai"
-                                                                ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-                                                                : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                                                    "Selesai"
+                                                                  ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                                                  : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
                                                         }`}
                                                     >
                                                         {trip.status}
