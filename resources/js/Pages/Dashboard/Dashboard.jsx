@@ -19,6 +19,7 @@ import {
     FaCalendarAlt,
     FaArrowUp,
     FaArrowDown,
+    FaShieldAlt,
 } from "react-icons/fa";
 
 ChartJS.register(
@@ -144,6 +145,7 @@ export default function Dashboard({
 }) {
     const { auth } = usePage().props;
     const [isDarkMode, setIsDarkMode] = useState(
+        localStorage.getItem("darkMode") === "true",
         localStorage.getItem("darkMode") === "true",
     );
 

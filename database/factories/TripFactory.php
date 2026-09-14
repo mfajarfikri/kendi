@@ -11,17 +11,11 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TripFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
     public function definition(): array
     {
         $waktu_keberangkatan = fake()->dateTimeBetween('-1 month', 'now');
         $waktu_kembali = fake()->dateTimeBetween($waktu_keberangkatan, '+2 days');
-        
-        
+
         return [
             'code_trip' => fake()->unique()->regexify('[A-Za-z0-9]{10}'),
             'kendaraan_id' => Kendaraan::factory(),
