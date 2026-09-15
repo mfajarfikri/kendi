@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Validation\Rule;
 
 class TamuController extends Controller
 {
@@ -68,19 +69,72 @@ class TamuController extends Controller
     }
 
     /**
+     * Bangun query listing tamu yang sudah menerapkan filter lokasi (role-based),
+     * pencarian plat kendaraan, dan rentang waktu kedatangan.
+     */
+    private function filteredTamuQuery(Request $request, ?User $user): Builder
+    {
+        $query = Tamu::query();
+        $this->applyTamuLocationFilter($query, $user);
+
+        $search = trim((string) $request->input('search', ''));
+        if ($search !== '') {
+            $query->where('plat_kendaraan', 'like', '%' . $search . '%');
+        }
+
+        $startDate = $request->date('start_date');
+        if ($startDate) {
+            $query->where('waktu_kedatangan', '>=', $startDate->copy()->startOfDay());
+        }
+
+        $endDate = $request->date('end_date');
+        if ($endDate) {
+            $query->where('waktu_kedatangan', '<=', $endDate->copy()->endOfDay());
+        }
+
+        return $query;
+    }
+
+    /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
 
-        $tamusQuery = Tamu::latest();
-        $this->applyTamuLocationFilter($tamusQuery, $user);
+        if (!$user) {
+            abort(401, 'Unauthenticated.');
+        }
+
+        $perPage = (int) $request->input('per_page', 8);
+        if (!in_array($perPage, [8, 16, 32, 50], true)) {
+            $perPage = 8;
+        }
+
+        // Statistik ringkas mengikuti filter yang sedang aktif
+        $stats = [
+            'total' => $this->filteredTamuQuery($request, $user)->count(),
+            'masuk' => $this->filteredTamuQuery($request, $user)->where('status', 'New')->count(),
+            'keluar' => $this->filteredTamuQuery($request, $user)->where('status', 'Close')->count(),
+        ];
+
+        $tamus = $this->filteredTamuQuery($request, $user)
+            ->orderByDesc('waktu_kedatangan')
+            ->orderByDesc('id')
+            ->paginate($perPage)
+            ->withQueryString();
 
         return Inertia::render('Kendaraan/Tamu', [
-            'tamus' => $tamusQuery->get(),
-            'appliedLocation' => $user && !$user->isAdmin ? trim((string) $user->lokasi) : '',
-            'isAdmin' => $user ? $user->isAdmin : false,
+            'tamus' => $tamus,
+            'filters' => [
+                'search' => trim((string) $request->input('search', '')),
+                'start_date' => $request->date('start_date')?->toDateString() ?? '',
+                'end_date' => $request->date('end_date')?->toDateString() ?? '',
+                'per_page' => $perPage,
+            ],
+            'stats' => $stats,
+            'appliedLocation' => $user->isAdmin ? '' : trim((string) $user->lokasi),
+            'isAdmin' => $user->isAdmin,
         ]);
     }
 
@@ -121,21 +175,36 @@ class TamuController extends Controller
             }
         }
 
-        $request->merge(['lokasi' => $forcedLokasi]);
+        $platKendaraan = strtoupper(trim((string) $request->input('plat_kendaraan')));
+
+        $request->merge([
+            'lokasi' => $forcedLokasi,
+            'plat_kendaraan' => $platKendaraan,
+        ]);
 
         $request->validate([
-            'plat_kendaraan' => 'required|string|max:20',
+            'plat_kendaraan' => [
+                'required',
+                'string',
+                'max:20',
+                // Tamu boleh datang kembali dengan plat yang sama, tetapi tidak boleh
+                // didaftarkan masuk lagi selama kepergian sebelumnya belum ditutup.
+                Rule::unique('tamus', 'plat_kendaraan')
+                    ->where(fn ($query) => $query->where('status', 'New')),
+            ],
             'waktu_kedatangan' => 'required|date',
             'foto_kendaraan' => 'required|array',
             'foto_kendaraan.*' => 'required|image|max:5120',
             'lokasi' => 'required|string',
+        ], [
+            'plat_kendaraan.unique' => 'Kendaraan dengan plat ini masih tercatat di dalam. Tutup dulu kepergiannya sebelum mendaftarkan masuk kembali.',
         ]);
 
         try {
             DB::beginTransaction();
 
             $tamu = new Tamu();
-            $tamu->plat_kendaraan = strtoupper($request->plat_kendaraan);
+            $tamu->plat_kendaraan = $platKendaraan;
             $tamu->waktu_kedatangan = $request->waktu_kedatangan;
             $tamu->status = 'New';
             $tamu->lokasi = $request->lokasi;
@@ -162,7 +231,7 @@ class TamuController extends Controller
             return redirect()->back()->with([
                 'success' => true,
                 'message' => 'Data kendaraan berhasil ditambahkan'
-            ])->with('tamus', Tamu::all());
+            ]);
 
         } catch (\Exception $e) {
             DB::rollback();

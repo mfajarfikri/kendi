@@ -38,7 +38,8 @@ class UserSeeder extends Seeder
                 'name' => 'Security Karawang',
                 'email' => 's.krwg@gmail.com',
                 'password' => bcrypt('123123123'),
-                'role' => 'user'
+                'role' => 'user',
+                'lokasi' => 'Karawang'
             ),
             3 =>
             array(
@@ -46,7 +47,8 @@ class UserSeeder extends Seeder
                 'name' => 'Security Purwakarta',
                 'email' => 's.pwkta@gmail.com',
                 'password' => bcrypt('123123123'),
-                'role' => 'user'
+                'role' => 'user',
+                'lokasi' => 'Purwakarta'
             ),
         ));
     }

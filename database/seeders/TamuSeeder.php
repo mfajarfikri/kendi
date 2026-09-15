@@ -20,8 +20,13 @@ class TamuSeeder extends Seeder
             array(
                 'id' => 1,
                 'plat_kendaraan' => 'T 1765 KI',
-                'merek' => 'ALL NEW VELOZ MT 1.5',
-                'km_awal' => 0,
+                'waktu_kedatangan' => now(),
+                'waktu_kepergian' => null,
+                'foto_kedatangan' => '[]',
+                'foto_kepergian' => null,
+                'status' => 'New',
+                'created_by' => null,
+                'lokasi' => 'Karawang',
                 'created_at' => now(),
                 'updated_at' => now()
             ),
