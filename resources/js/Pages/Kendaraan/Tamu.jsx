@@ -743,6 +743,19 @@ export default function Tamu({ tamus, auth, filters = {}, stats = {} }) {
         }
     };
 
+    // Komponen skeleton saat tabel sedang memuat data
+    const TableSkeleton = () => (
+        <div className="animate-pulse">
+            <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-t-lg mb-4"></div>
+            {[1, 2, 3, 4, 5].map((index) => (
+                <div
+                    key={index}
+                    className="h-16 bg-gray-100 dark:bg-gray-800 mb-2 rounded-lg"
+                ></div>
+            ))}
+        </div>
+    );
+
     return (
         <>
             <Head title="Tamu" />
